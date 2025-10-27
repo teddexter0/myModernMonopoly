@@ -1,0 +1,27 @@
+/* Additional game-specific styles */
+/* Currently everything is in app/globals.css */
+
+.game-board {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 0.25rem;
+}
+
+.property-card {
+  transition: transform 0.2s ease;
+}
+
+.property-card:hover {
+  transform: scale(1.05);
+}
+
+.dice-animation {
+  animation: roll 0.5s ease-in-out;
+}
+
+@keyframes roll {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(90deg); }
+  50% { transform: rotate(180deg); }
+  75% { transform: rotate(270deg); }
+}
