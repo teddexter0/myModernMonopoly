@@ -1,22 +1,42 @@
+'use client';
 import React from 'react';
 
 interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
 }
 
-export default function Modal({ isOpen, onClose, children }: ModalProps) {
-  if (!isOpen) return null;
+export function Modal({ open, onOpenChange, children }: ModalProps) {
+  if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full">
+    <div
+      onClick={() => onOpenChange(false)}
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-slate-800 text-white rounded-xl shadow-lg p-6 max-w-md w-full"
+      >
         {children}
-        <button onClick={onClose} className="mt-4 bg-red-600 px-4 py-2 rounded-lg w-full">
-          Close
-        </button>
       </div>
     </div>
   );
+}
+
+export function ModalContent({ children }: { children: React.ReactNode }) {
+  return <div>{children}</div>;
+}
+
+export function ModalHeader({ children }: { children: React.ReactNode }) {
+  return <div className="text-xl font-bold mb-4">{children}</div>;
+}
+
+export function ModalBody({ children }: { children: React.ReactNode }) {
+  return <div className="mb-4">{children}</div>;
+}
+
+export function ModalFooter({ children }: { children: React.ReactNode }) {
+  return <div className="flex justify-end gap-2 mt-4">{children}</div>;
 }

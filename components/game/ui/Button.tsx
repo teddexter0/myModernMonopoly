@@ -1,24 +1,23 @@
+'use client';
 import React from 'react';
+import clsx from 'clsx';
 
-interface ButtonProps {
-  children: React.ReactNode;
+type ButtonProps = {
   onClick?: () => void;
-  variant?: 'primary' | 'secondary' | 'danger';
-  disabled?: boolean;
-}
+  children: React.ReactNode;
+  variant?: 'primary' | 'secondary';
+};
 
-export default function Button({ children, onClick, variant = 'primary', disabled = false }: ButtonProps) {
-  const variants = {
-    primary: 'bg-blue-600 hover:bg-blue-700',
-    secondary: 'bg-gray-600 hover:bg-gray-700',
-    danger: 'bg-red-600 hover:bg-red-700',
-  };
-
+export function Button({ onClick, children, variant = 'primary' }: ButtonProps) {
   return (
     <button
       onClick={onClick}
-      disabled={disabled}
-      className={`${variants[variant]} px-4 py-2 rounded-lg font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all`}
+      className={clsx(
+        'px-4 py-2 rounded-lg font-semibold transition',
+        variant === 'primary'
+          ? 'bg-blue-600 hover:bg-blue-700 text-white'
+          : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+      )}
     >
       {children}
     </button>

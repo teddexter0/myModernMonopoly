@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { DollarSign, TrendingUp, Building2, Zap, Users, Globe, Rocket, Brain, Shield, Factory, Landmark, Package } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { DollarSign, TrendingUp, Building2, Zap, Users, Globe, Rocket, Brain, Shield, Factory, Landmark, Package, ShoppingCart, X } from 'lucide-react';
 
 // TypeScript interfaces
 interface District {
@@ -26,8 +26,10 @@ interface Player {
   stocks: Record<string, number>;
   netWorth: number;
   inJail: boolean;
+  jailTurns: number;
   color: string;
   border: string;
+  doubles: number;
 }
 
 interface Stock {
@@ -45,6 +47,12 @@ interface GameEvent {
   icon: React.FC<any>;
 }
 
+interface StockCartItem {
+  ticker: string;
+  quantity: number;
+  price: number;
+}
+
 // Game data
 const DISTRICTS: District[] = [
   { id: 0, name: 'HQ START', type: 'special', color: 'emerald', icon: Rocket },
@@ -57,7 +65,7 @@ const DISTRICTS: District[] = [
   { id: 7, name: 'Market Event', type: 'card', color: 'orange', icon: Globe },
   { id: 8, name: 'Tokyo Tower', cost: 100, rent: [6, 30, 90, 270, 400, 550], color: 'cyan', group: 'asia', region: 'Asia', icon: Factory },
   { id: 9, name: 'Shanghai Finance', cost: 120, rent: [8, 40, 100, 300, 450, 600], color: 'cyan', group: 'asia', region: 'Asia', icon: Factory },
-  { id: 10, name: 'Detention Center', type: 'special', color: 'gray', icon: Shield },
+  { id: 10, name: 'Detention Center', type: 'jail', color: 'gray', icon: Shield },
   { id: 11, name: 'London Offices', cost: 140, rent: [10, 50, 150, 450, 625, 750], color: 'pink', group: 'europe', region: 'EU', icon: Building2 },
   { id: 12, name: 'Energy Corp', cost: 150, type: 'utility', color: 'yellow', icon: Zap },
   { id: 13, name: 'Berlin Campus', cost: 140, rent: [10, 50, 150, 450, 625, 750], color: 'pink', group: 'europe', region: 'EU', icon: Building2 },
@@ -77,7 +85,7 @@ const DISTRICTS: District[] = [
   { id: 27, name: 'São Paulo', cost: 260, rent: [22, 110, 330, 800, 975, 1150], color: 'yellow', group: 'latam', region: 'EM', icon: Factory },
   { id: 28, name: 'Quantum Corp', cost: 150, type: 'utility', color: 'purple', icon: Brain },
   { id: 29, name: 'Mexico City', cost: 280, rent: [24, 120, 360, 850, 1025, 1200], color: 'yellow', group: 'latam', region: 'EM', icon: Factory },
-  { id: 30, name: 'Audit Lockdown', type: 'special', color: 'red', icon: Shield },
+  { id: 30, name: 'Go To Detention', type: 'gotojail', color: 'red', icon: Shield },
   { id: 31, name: 'New York Prime', cost: 300, rent: [26, 130, 390, 900, 1100, 1275], color: 'green', group: 'premium', region: 'NA', icon: Building2 },
   { id: 32, name: 'LA Complex', cost: 300, rent: [26, 130, 390, 900, 1100, 1275], color: 'green', group: 'premium', region: 'NA', icon: Building2 },
   { id: 33, name: 'Investment Card', type: 'card', color: 'purple', icon: TrendingUp },
@@ -89,23 +97,23 @@ const DISTRICTS: District[] = [
   { id: 39, name: 'Moon Base', cost: 400, rent: [50, 200, 600, 1400, 1700, 2000], color: 'indigo', group: 'space', region: 'Space', icon: Rocket },
 ];
 
+const CHANCE_CARDS = [
+  { text: "Tech boom! Collect $200", amount: 200 },
+  { text: "Market correction. Pay $50", amount: -50 },
+  { text: "Dividend payout! Collect $150", amount: 150 },
+  { text: "Regulatory fine. Pay $100", amount: -100 },
+  { text: "Investment returns! Collect $100", amount: 100 },
+  { text: "Go directly to Detention. Do not pass HQ.", special: "jail" },
+  { text: "Advance to HQ. Collect $200", special: "go" },
+  { text: "Universal income! Collect $50", amount: 50 },
+];
+
 const STOCKS: Record<string, Stock> = {
   TECH: { name: 'TechCorp AI', price: 100, volatility: 0.3, icon: Brain, color: 'blue' },
   ENERGY: { name: 'GreenPower', price: 150, volatility: 0.1, icon: Zap, color: 'green' },
   CRYPTO: { name: 'BlockChain Inc', price: 50, volatility: 0.7, icon: Package, color: 'orange' },
   SPACE: { name: 'AstroX', price: 200, volatility: 0.5, icon: Rocket, color: 'purple' },
 };
-
-const EVENTS: GameEvent[] = [
-  { name: 'AI Boom', effect: 'Tech stocks +40%, automation reduces costs', type: 'positive', icon: Brain },
-  { name: 'Recession Alert', effect: 'All rents -25% for 3 turns', type: 'negative', icon: TrendingUp },
-  { name: 'Crypto Rally', effect: 'CRYPTO stock +80%', type: 'neutral', icon: Package },
-  { name: 'Space Race', effect: 'Space properties +30% value', type: 'positive', icon: Rocket },
-  { name: 'Universal Income', effect: 'All players get $300/turn', type: 'positive', icon: DollarSign },
-  { name: 'Market Crash', effect: 'All stocks -40%', type: 'negative', icon: TrendingUp },
-  { name: 'Green Revolution', effect: 'Energy utilities 2x income', type: 'positive', icon: Zap },
-  { name: 'Quantum Breakthrough', effect: 'Tech properties rent +50%', type: 'positive', icon: Brain },
-];
 
 const PLAYER_COLORS = [
   { name: 'Cyan Ventures', color: 'bg-cyan-500', border: 'border-cyan-400' },
@@ -123,10 +131,11 @@ export default function CapitalWars() {
   const [gameLog, setGameLog] = useState<string[]>(['Welcome to Capital Wars 2050!']);
   const [turnNumber, setTurnNumber] = useState(0);
   const [stockPrices, setStockPrices] = useState(STOCKS);
-  const [currentEvent, setCurrentEvent] = useState<GameEvent | null>(null);
   const [showDistrictModal, setShowDistrictModal] = useState<District | null>(null);
-  const [economicState, setEconomicState] = useState('stable');
-  const [inflationRate] = useState(0.02);
+  const [stockCart, setStockCart] = useState<StockCartItem[]>([]);
+  const [showStockCart, setShowStockCart] = useState(false);
+  const [turnPhase, setTurnPhase] = useState<'roll' | 'action' | 'end'>('roll');
+  const [rolledThisTurn, setRolledThisTurn] = useState(false);
 
   const currentPlayer = players[currentPlayerIndex];
 
@@ -144,23 +153,107 @@ export default function CapitalWars() {
       stocks: {},
       netWorth: 1500,
       inJail: false,
+      jailTurns: 0,
+      doubles: 0,
       color: PLAYER_COLORS[i].color,
       border: PLAYER_COLORS[i].border,
     }));
     setPlayers(newPlayers);
     setGameStarted(true);
-    addLog('Game started! Roll dice to begin your empire.');
+    addLog(`${newPlayers[0].name} starts the game!`);
   };
 
-  const rollDice = () => {
+  // Simulate physics-based dice roll
+  const simulateDiceRoll = (): Promise<[number, number]> => {
+    return new Promise((resolve) => {
+      let rolls = 0;
+      const maxRolls = 10;
+      const interval = setInterval(() => {
+        const d1 = Math.floor(Math.random() * 6) + 1;
+        const d2 = Math.floor(Math.random() * 6) + 1;
+        setDice([d1, d2]);
+        rolls++;
+        
+        if (rolls >= maxRolls) {
+          clearInterval(interval);
+          resolve([d1, d2]);
+        }
+      }, 100);
+    });
+  };
+
+  const rollDice = async () => {
+    if (!currentPlayer || rolledThisTurn) return;
+
+    // Handle jail
+    if (currentPlayer.inJail) {
+      const [d1, d2] = await simulateDiceRoll();
+      
+      if (d1 === d2) {
+        addLog(`${currentPlayer.name} rolled doubles! Released from detention!`);
+        const updatedPlayers = [...players];
+        updatedPlayers[currentPlayerIndex].inJail = false;
+        updatedPlayers[currentPlayerIndex].jailTurns = 0;
+        setPlayers(updatedPlayers);
+        movePlayer(d1 + d2);
+      } else {
+        const updatedPlayers = [...players];
+        updatedPlayers[currentPlayerIndex].jailTurns++;
+        
+        if (updatedPlayers[currentPlayerIndex].jailTurns >= 3) {
+          addLog(`${currentPlayer.name} paid $50 to leave detention after 3 turns`);
+          updatedPlayers[currentPlayerIndex].cash -= 50;
+          updatedPlayers[currentPlayerIndex].inJail = false;
+          updatedPlayers[currentPlayerIndex].jailTurns = 0;
+          setPlayers(updatedPlayers);
+          movePlayer(d1 + d2);
+        } else {
+          addLog(`${currentPlayer.name} didn't roll doubles. ${3 - updatedPlayers[currentPlayerIndex].jailTurns} turns left`);
+          setPlayers(updatedPlayers);
+          setTurnPhase('end');
+        }
+      }
+      setRolledThisTurn(true);
+      return;
+    }
+
+    // Normal roll
+    const [d1, d2] = await simulateDiceRoll();
+    const isDoubles = d1 === d2;
+    
+    addLog(`${currentPlayer.name} rolled ${d1} + ${d2} = ${d1 + d2}${isDoubles ? ' (DOUBLES!)' : ''}`);
+    
+    const updatedPlayers = [...players];
+    
+    if (isDoubles) {
+      updatedPlayers[currentPlayerIndex].doubles++;
+      if (updatedPlayers[currentPlayerIndex].doubles >= 3) {
+        addLog(`${currentPlayer.name} rolled 3 doubles! Go to detention!`);
+        updatedPlayers[currentPlayerIndex].position = 10;
+        updatedPlayers[currentPlayerIndex].inJail = true;
+        updatedPlayers[currentPlayerIndex].doubles = 0;
+        setPlayers(updatedPlayers);
+        setTurnPhase('end');
+        setRolledThisTurn(true);
+        return;
+      }
+    } else {
+      updatedPlayers[currentPlayerIndex].doubles = 0;
+    }
+    
+    setPlayers(updatedPlayers);
+    movePlayer(d1 + d2);
+    setRolledThisTurn(true);
+    
+    if (!isDoubles) {
+      setTurnPhase('action');
+    }
+  };
+
+  const movePlayer = (steps: number) => {
     if (!currentPlayer) return;
 
-    const d1 = Math.floor(Math.random() * 6) + 1;
-    const d2 = Math.floor(Math.random() * 6) + 1;
-    setDice([d1, d2]);
-    
-    const sum = d1 + d2;
-    const newPosition = (currentPlayer.position + sum) % 40;
+    const newPosition = (currentPlayer.position + steps) % 40;
     const passedHQ = newPosition < currentPlayer.position;
     
     const updatedPlayers = [...players];
@@ -172,56 +265,114 @@ export default function CapitalWars() {
     }
     
     setPlayers(updatedPlayers);
-    addLog(`${currentPlayer.name} rolled ${d1} + ${d2} = ${sum}`);
     
     const landedDistrict = DISTRICTS[newPosition];
     handleLanding(landedDistrict, updatedPlayers[currentPlayerIndex]);
     
     if (turnNumber % 5 === 0 && turnNumber > 0) {
-      updateMarket(sum);
-      triggerEvent();
+      updateMarket(steps);
     }
     
     setTurnNumber(prev => prev + 1);
   };
 
   const handleLanding = (district: District, player: Player) => {
-    if (district.type === 'special') {
-      if (district.name === 'Audit Lockdown') {
-        addLog(`${player.name} sent to detention!`);
-        const updatedPlayers = [...players];
-        const idx = players.findIndex(p => p.id === player.id);
-        updatedPlayers[idx].position = 10;
-        updatedPlayers[idx].inJail = true;
-        setPlayers(updatedPlayers);
-      } else if (district.name === 'Free Market') {
-        addLog(`${player.name} enjoys free market benefits!`);
-      }
+    if (district.type === 'gotojail') {
+      addLog(`${player.name} sent to detention!`);
+      const updatedPlayers = [...players];
+      const idx = players.findIndex(p => p.id === player.id);
+      updatedPlayers[idx].position = 10;
+      updatedPlayers[idx].inJail = true;
+      updatedPlayers[idx].doubles = 0;
+      setPlayers(updatedPlayers);
+      setTurnPhase('end');
+    } else if (district.type === 'jail') {
+      addLog(`${player.name} is just visiting detention.`);
+    } else if (district.type === 'special' && district.name === 'Free Market') {
+      addLog(`${player.name} enjoys free market benefits!`);
     } else if (district.type === 'tax' && district.amount) {
       addLog(`${player.name} pays $${district.amount} ${district.name}`);
       updatePlayerCash(player.id, -district.amount);
+    } else if (district.type === 'card') {
+      drawChanceCard(player);
+    } else if (district.type === 'utility') {
+      handleUtilityLanding(district, player);
+    } else if (district.type === 'transport') {
+      handleTransportLanding(district, player);
     } else if (district.cost && !district.type) {
       const owner = players.find(p => p.properties.includes(district.id));
       if (!owner) {
         setShowDistrictModal(district);
       } else if (owner.id !== player.id) {
-        const rent = calculateRent(district);
+        const rent = calculateRent(district, owner);
         addLog(`${player.name} pays $${rent} rent to ${owner.name}`);
         updatePlayerCash(player.id, -rent);
         updatePlayerCash(owner.id, rent);
       }
-    } else if (district.type === 'card') {
-      addLog(`${player.name} draws a ${district.name}`);
-      const bonus = Math.floor(Math.random() * 200) + 50;
-      updatePlayerCash(player.id, bonus);
-      addLog(`Received $${bonus} bonus!`);
     }
   };
 
-  const calculateRent = (district: District) => {
-    const baseRent = district.rent ? district.rent[0] : 0;
-    const inflationMultiplier = 1 + (inflationRate * turnNumber / 10);
-    return Math.floor(baseRent * inflationMultiplier);
+  const drawChanceCard = (player: Player) => {
+    const card = CHANCE_CARDS[Math.floor(Math.random() * CHANCE_CARDS.length)];
+    addLog(`${player.name} drew: "${card.text}"`);
+    
+    if (card.special === 'jail') {
+      const updatedPlayers = [...players];
+      const idx = players.findIndex(p => p.id === player.id);
+      updatedPlayers[idx].position = 10;
+      updatedPlayers[idx].inJail = true;
+      setPlayers(updatedPlayers);
+    } else if (card.special === 'go') {
+      const updatedPlayers = [...players];
+      const idx = players.findIndex(p => p.id === player.id);
+      updatedPlayers[idx].position = 0;
+      updatedPlayers[idx].cash += 200;
+      setPlayers(updatedPlayers);
+    } else if (card.amount) {
+      updatePlayerCash(player.id, card.amount);
+    }
+  };
+
+  const handleUtilityLanding = (district: District, player: Player) => {
+    const owner = players.find(p => p.properties.includes(district.id));
+    if (!owner) {
+      setShowDistrictModal(district);
+    } else if (owner.id !== player.id) {
+      const utilitiesOwned = owner.properties.filter(id => {
+        const d = DISTRICTS[id];
+        return d.type === 'utility';
+      }).length;
+      const multiplier = utilitiesOwned === 2 ? 10 : 4;
+      const rent = (dice[0] + dice[1]) * multiplier;
+      addLog(`${player.name} pays $${rent} (${dice[0]}+${dice[1]} × ${multiplier}) to ${owner.name}`);
+      updatePlayerCash(player.id, -rent);
+      updatePlayerCash(owner.id, rent);
+    }
+  };
+
+  const handleTransportLanding = (district: District, player: Player) => {
+    const owner = players.find(p => p.properties.includes(district.id));
+    if (!owner) {
+      setShowDistrictModal(district);
+    } else if (owner.id !== player.id) {
+      const transportsOwned = owner.properties.filter(id => {
+        const d = DISTRICTS[id];
+        return d.type === 'transport';
+      }).length;
+      const rent = 25 * Math.pow(2, transportsOwned - 1);
+      addLog(`${player.name} pays $${rent} transport fee to ${owner.name}`);
+      updatePlayerCash(player.id, -rent);
+      updatePlayerCash(owner.id, rent);
+    }
+  };
+
+  const calculateRent = (district: District, owner: Player) => {
+    if (!district.rent || !district.group) return district.rent?.[0] || 0;
+    
+    const groupProperties = DISTRICTS.filter(d => d.group === district.group && d.cost);
+    const ownsAll = groupProperties.every(d => owner.properties.includes(d.id));
+    
+    return ownsAll ? district.rent[0] * 2 : district.rent[0];
   };
 
   const buyDistrict = () => {
@@ -241,7 +392,11 @@ export default function CapitalWars() {
 
   const updatePlayerCash = (playerId: number, amount: number) => {
     setPlayers(prev => prev.map(p => 
-      p.id === playerId ? { ...p, cash: Math.max(0, p.cash + amount), netWorth: Math.max(0, p.netWorth + amount) } : p
+      p.id === playerId ? { 
+        ...p, 
+        cash: Math.max(0, p.cash + amount), 
+        netWorth: Math.max(0, p.netWorth + amount) 
+      } : p
     ));
   };
 
@@ -261,49 +416,65 @@ export default function CapitalWars() {
     addLog('📊 Market prices updated!');
   };
 
-  const triggerEvent = () => {
-    const event = EVENTS[Math.floor(Math.random() * EVENTS.length)];
-    setCurrentEvent(event);
-    addLog(`🌍 GLOBAL EVENT: ${event.name}`);
+  const addToCart = (ticker: string) => {
+    const stock = stockPrices[ticker];
+    const existing = stockCart.find(item => item.ticker === ticker);
     
-    if (event.name === 'Universal Income') {
-      setPlayers(prev => prev.map(p => ({ ...p, cash: p.cash + 300 })));
-    } else if (event.name === 'Market Crash') {
-      setStockPrices(prev => {
-        const updated: Record<string, Stock> = {};
-        Object.keys(prev).forEach(ticker => {
-          updated[ticker] = { ...prev[ticker], price: Math.floor(prev[ticker].price * 0.6) };
-        });
-        return updated;
-      });
-    } else if (event.name === 'AI Boom') {
-      setEconomicState('boom');
-    } else if (event.name === 'Recession Alert') {
-      setEconomicState('recession');
+    if (existing) {
+      setStockCart(prev => prev.map(item =>
+        item.ticker === ticker ? { ...item, quantity: item.quantity + 1 } : item
+      ));
+    } else {
+      setStockCart(prev => [...prev, { ticker, quantity: 1, price: stock.price }]);
     }
-    
-    setTimeout(() => {
-      setCurrentEvent(null);
-      setEconomicState('stable');
-    }, 5000);
   };
 
-  const buyStock = (ticker: string) => {
-    if (!currentPlayer) return;
-    const stock = stockPrices[ticker];
-    if (currentPlayer.cash >= stock.price) {
+  const removeFromCart = (ticker: string) => {
+    setStockCart(prev => prev.filter(item => item.ticker !== ticker));
+  };
+
+  const updateCartQuantity = (ticker: string, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromCart(ticker);
+    } else {
+      setStockCart(prev => prev.map(item =>
+        item.ticker === ticker ? { ...item, quantity } : item
+      ));
+    }
+  };
+
+  const checkoutCart = () => {
+    if (!currentPlayer || stockCart.length === 0) return;
+    
+    const total = stockCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    if (currentPlayer.cash >= total) {
       const updatedPlayers = [...players];
-      updatedPlayers[currentPlayerIndex].cash -= stock.price;
-      updatedPlayers[currentPlayerIndex].stocks[ticker] = (updatedPlayers[currentPlayerIndex].stocks[ticker] || 0) + 1;
-      updatedPlayers[currentPlayerIndex].netWorth += stock.price * 0.8;
+      updatedPlayers[currentPlayerIndex].cash -= total;
+      
+      stockCart.forEach(item => {
+        const currentQty = updatedPlayers[currentPlayerIndex].stocks[item.ticker] || 0;
+        updatedPlayers[currentPlayerIndex].stocks[item.ticker] = currentQty + item.quantity;
+      });
+      
+      updatedPlayers[currentPlayerIndex].netWorth += total * 0.8;
       setPlayers(updatedPlayers);
-      addLog(`${currentPlayer.name} bought 1 ${ticker} @ $${stock.price}`);
+      
+      addLog(`${currentPlayer.name} bought ${stockCart.length} stock type(s) for $${total}`);
+      setStockCart([]);
+      setShowStockCart(false);
+    } else {
+      addLog(`${currentPlayer.name} doesn't have enough cash!`);
     }
   };
 
   const endTurn = () => {
     setCurrentPlayerIndex((prev) => (prev + 1) % players.length);
     setShowDistrictModal(null);
+    setTurnPhase('roll');
+    setRolledThisTurn(false);
+    setStockCart([]);
+    setShowStockCart(false);
     addLog(`--- ${players[(currentPlayerIndex + 1) % players.length]?.name}'s turn ---`);
   };
 
@@ -324,54 +495,57 @@ export default function CapitalWars() {
     return colors[color] || 'bg-gray-400';
   };
 
+  const cartTotal = stockCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
   if (!gameStarted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white flex items-center justify-center p-4">
         <div className="max-w-2xl w-full bg-black/40 backdrop-blur-xl rounded-2xl p-8 border border-white/10">
           <div className="text-center mb-8">
-            <h1 className="text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400">
+            <h1 className="text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
               CAPITAL WARS
             </h1>
-            <p className="text-2xl text-gray-300 mb-2">2050</p>
-            <p className="text-gray-400">Build your corporate empire in the age of AI & space exploration</p>
+            <p className="text-3xl text-gray-200 mb-3 font-semibold">2050</p>
+            <p className="text-gray-300 text-lg">Build your corporate empire in the age of AI & space exploration</p>
           </div>
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-bold mb-3 text-gray-300">SELECT CORPORATIONS</label>
-              <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm font-bold mb-3 text-gray-200 uppercase tracking-wide">Select Corporations</label>
+              <div className="grid grid-cols-3 gap-3">
                 {[2, 3, 4].map(num => (
                   <button
                     key={num}
                     onClick={() => setPlayerCount(num)}
-                    className={`p-4 rounded-lg border-2 transition-all ${
+                    className={`p-5 rounded-xl border-2 transition-all font-semibold ${
                       playerCount === num
-                        ? 'bg-purple-600 border-purple-400 scale-105'
-                        : 'bg-white/5 border-white/10 hover:border-white/30'
+                        ? 'bg-purple-600 border-purple-400 scale-105 shadow-lg shadow-purple-500/50'
+                        : 'bg-white/5 border-white/10 hover:border-white/30 hover:bg-white/10'
                     }`}
                   >
                     <Users className="w-8 h-8 mx-auto mb-2" />
-                    <div className="font-bold">{num} Players</div>
+                    <div className="font-bold text-lg">{num} Players</div>
                   </button>
                 ))}
               </div>
             </div>
 
             <button
-            onClick={startGame}
-              className="w-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 hover:from-cyan-600 hover:via-purple-600 hover:to-pink-600 py-4 rounded-lg font-bold text-xl transition-all transform hover:scale-105"
+              onClick={startGame}
+              className="w-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 hover:from-cyan-600 hover:via-purple-600 hover:to-pink-600 py-5 rounded-xl font-bold text-xl transition-all transform hover:scale-105 shadow-lg"
             >
               🚀 START GAME
             </button>
 
-            <div className="bg-white/5 rounded-lg p-4 text-sm text-gray-400">
-              <div className="font-bold text-white mb-2">🎮 GAME FEATURES:</div>
-              <ul className="space-y-1">
-                <li>• Dynamic stock market with 4 sectors</li>
-                <li>• Global events affecting economy</li>
-                <li>• Real-time inflation simulation</li>
-                <li>• Space & emerging market properties</li>
-                <li>• Educational finance mechanics</li>
+            <div className="bg-white/5 rounded-xl p-5 text-sm text-gray-300 border border-white/10">
+              <div className="font-bold text-white mb-3 text-base">🎮 MONOPOLY-STYLE FEATURES:</div>
+              <ul className="space-y-2 leading-relaxed">
+                <li>• Roll doubles to get extra turns</li>
+                <li>• Jail/Detention mechanics (3 turns or pay $50)</li>
+                <li>• Chance cards with rewards & penalties</li>
+                <li>• Dynamic rent based on monopolies</li>
+                <li>• Stock trading with shopping cart</li>
+                <li>• Utilities & transport stations</li>
               </ul>
             </div>
           </div>
@@ -384,29 +558,13 @@ export default function CapitalWars() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white p-4">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-4">
-          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-pink-400">
+          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-pink-400" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
             CAPITAL WARS 2050
           </h1>
-          <div className="text-sm text-gray-400 mt-1">
-            Turn {turnNumber} | Inflation: {(inflationRate * 100).toFixed(1)}% | Economy: {economicState.toUpperCase()}
+          <div className="text-sm text-gray-300 mt-2 font-medium">
+            Turn {turnNumber} | Phase: {turnPhase.toUpperCase()}
           </div>
         </div>
-
-        {currentEvent && (
-          <div className={`mb-4 p-4 rounded-lg border-2 animate-pulse ${
-            currentEvent.type === 'positive' ? 'bg-green-900/50 border-green-500' :
-            currentEvent.type === 'negative' ? 'bg-red-900/50 border-red-500' :
-            'bg-blue-900/50 border-blue-500'
-          }`}>
-            <div className="flex items-center gap-3">
-              {React.createElement(currentEvent.icon, { className: "w-6 h-6" })}
-              <div>
-                <div className="font-bold text-lg">{currentEvent.name}</div>
-                <div className="text-sm">{currentEvent.effect}</div>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="space-y-4">
@@ -416,14 +574,19 @@ export default function CapitalWars() {
                 Corporations
               </h2>
               {players.map((player, idx) => (
-                <div key={player.id} className={`mb-3 p-3 rounded-lg border-2 ${
-                  idx === currentPlayerIndex ? `${player.border} bg-white/10` : 'border-white/5 bg-white/5'
+                <div key={player.id} className={`mb-3 p-3 rounded-lg border-2 transition-all ${
+                  idx === currentPlayerIndex ? `${player.border} bg-white/10 shadow-lg` : 'border-white/5 bg-white/5'
                 }`}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <div className={`w-4 h-4 rounded-full ${player.color}`}></div>
+                      <div className={`w-4 h-4 rounded-full ${player.color} shadow-md`}></div>
                       <span className="font-bold text-sm">{player.name}</span>
                     </div>
+                    {player.inJail && (
+                      <span className="text-xs bg-red-500/30 px-2 py-1 rounded border border-red-400">
+                        🔒 JAIL {player.jailTurns}/3
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs space-y-1">
                     <div className="flex justify-between">
@@ -436,11 +599,11 @@ export default function CapitalWars() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Districts:</span>
-                      <span>{player.properties.length}</span>
+                      <span className="font-semibold">{player.properties.length}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Location:</span>
-                      <span className="text-xs">{DISTRICTS[player.position].name}</span>
+                      <span className="text-xs truncate max-w-[120px]">{DISTRICTS[player.position].name}</span>
                     </div>
                   </div>
                 </div>
@@ -448,15 +611,82 @@ export default function CapitalWars() {
             </div>
 
             <div className="bg-black/40 backdrop-blur-xl rounded-xl p-4 border border-white/10">
-              <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Global Markets
-              </h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5" />
+                  Global Markets
+                </h2>
+                {stockCart.length > 0 && (
+                  <button
+                    onClick={() => setShowStockCart(!showStockCart)}
+                    className="relative bg-purple-600 hover:bg-purple-700 p-2 rounded-lg transition-all"
+                  >
+                    <ShoppingCart className="w-5 h-5" />
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                      {stockCart.length}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {showStockCart && stockCart.length > 0 && (
+                <div className="mb-3 p-3 bg-purple-900/30 rounded-lg border border-purple-500">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-bold text-sm">Shopping Cart</h3>
+                    <button onClick={() => setShowStockCart(false)}>
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="space-y-2 mb-2">
+                    {stockCart.map(item => (
+                      <div key={item.ticker} className="flex items-center justify-between text-xs bg-white/5 p-2 rounded">
+                        <div>
+                          <div className="font-bold">{item.ticker}</div>
+                          <div className="text-gray-400">${item.price} × {item.quantity}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => updateCartQuantity(item.ticker, item.quantity - 1)}
+                            className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
+                          >
+                            -
+                          </button>
+                          <span className="font-bold">{item.quantity}</span>
+                          <button
+                            onClick={() => updateCartQuantity(item.ticker, item.quantity + 1)}
+                            className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs"
+                          >
+                            +
+                          </button>
+                          <button
+                            onClick={() => removeFromCart(item.ticker)}
+                            className="bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded text-xs ml-1"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between mb-2 pt-2 border-t border-white/20">
+                    <span className="font-bold">Total:</span>
+                    <span className="text-green-400 font-bold">${cartTotal.toLocaleString()}</span>
+                  </div>
+                  <button
+                    onClick={checkoutCart}
+                    disabled={!currentPlayer || currentPlayer.cash < cartTotal}
+                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-2 rounded text-xs font-bold transition-all"
+                  >
+                    Checkout (${cartTotal})
+                  </button>
+                </div>
+              )}
+
               {Object.entries(stockPrices).map(([ticker, stock]) => {
                 const Icon = stock.icon;
                 const owned = currentPlayer?.stocks[ticker] || 0;
                 return (
-                  <div key={ticker} className="mb-3 p-3 bg-white/5 rounded-lg border border-white/10">
+                  <div key={ticker} className="mb-3 p-3 bg-white/5 rounded-lg border border-white/10 hover:border-white/20 transition-all">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <Icon className="w-4 h-4" />
@@ -471,11 +701,11 @@ export default function CapitalWars() {
                       </div>
                     </div>
                     <button 
-                      onClick={() => buyStock(ticker)}
+                      onClick={() => addToCart(ticker)}
                       disabled={!currentPlayer || currentPlayer.cash < stock.price}
                       className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-1.5 rounded text-xs font-bold transition-all"
                     >
-                      Buy Share
+                      Add to Cart
                     </button>
                   </div>
                 );
@@ -487,34 +717,54 @@ export default function CapitalWars() {
             <div className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-white/10">
               <div className="text-center mb-4">
                 <h3 className="text-2xl font-bold mb-2 flex items-center justify-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${currentPlayer?.color}`}></div>
+                  <div className={`w-3 h-3 rounded-full ${currentPlayer?.color} shadow-lg`}></div>
                   {currentPlayer?.name}
+                  {currentPlayer?.inJail && <span className="text-red-400 text-sm">(IN JAIL)</span>}
                 </h3>
+                <div className="text-sm text-gray-300">
+                  {currentPlayer?.inJail 
+                    ? 'Roll doubles to escape or wait 3 turns' 
+                    : turnPhase === 'roll' 
+                      ? 'Roll the dice to move' 
+                      : turnPhase === 'action'
+                        ? 'Take actions or end turn'
+                        : 'Processing...'}
+                </div>
               </div>
 
               <div className="flex justify-center gap-4 mb-6">
-                <div className="bg-gradient-to-br from-white to-gray-200 text-black rounded-xl p-6 flex items-center justify-center shadow-xl transform hover:scale-105 transition-transform">
-                  <span className="text-4xl font-bold">{dice[0]}</span>
+                <div className="bg-gradient-to-br from-white to-gray-200 text-black rounded-xl p-8 flex items-center justify-center shadow-xl transform hover:scale-105 transition-transform w-20 h-20">
+                  <span className="text-5xl font-bold">{dice[0]}</span>
                 </div>
-                <div className="bg-gradient-to-br from-white to-gray-200 text-black rounded-xl p-6 flex items-center justify-center shadow-xl transform hover:scale-105 transition-transform">
-                  <span className="text-4xl font-bold">{dice[1]}</span>
+                <div className="bg-gradient-to-br from-white to-gray-200 text-black rounded-xl p-8 flex items-center justify-center shadow-xl transform hover:scale-105 transition-transform w-20 h-20">
+                  <span className="text-5xl font-bold">{dice[1]}</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <button 
                   onClick={rollDice}
-                  className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all transform hover:scale-105"
+                  disabled={rolledThisTurn || (turnPhase !== 'roll' && !currentPlayer?.inJail)}
+                  className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-4 rounded-lg font-bold text-lg flex items-center justify-center gap-2 transition-all transform hover:scale-105 shadow-lg"
                 >
                   🎲 Roll Dice
                 </button>
                 <button 
                   onClick={endTurn}
-                  className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition-all transform hover:scale-105"
+                  disabled={!rolledThisTurn}
+                  className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-4 rounded-lg font-bold text-lg flex items-center justify-center gap-2 transition-all transform hover:scale-105 shadow-lg"
                 >
                   End Turn →
                 </button>
               </div>
+
+              {currentPlayer?.doubles > 0 && !currentPlayer?.inJail && (
+                <div className="mt-3 bg-yellow-500/20 border border-yellow-500 rounded-lg p-3 text-center">
+                  <span className="text-yellow-300 font-bold">
+                    🎯 You rolled doubles! Roll again or end turn.
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="bg-black/40 backdrop-blur-xl rounded-xl p-4 border border-white/10">
@@ -531,31 +781,48 @@ export default function CapitalWars() {
                   return (
                     <div 
                       key={district.id} 
-                      className={`h-14 rounded-lg ${getDistrictColor(district.color)} relative border border-white/30 flex flex-col items-center justify-center cursor-pointer hover:scale-110 transition-transform`}
-                      title={district.name}
+                      className={`h-16 rounded-lg ${getDistrictColor(district.color)} relative border-2 border-white/30 flex flex-col items-center justify-center cursor-pointer hover:scale-110 hover:shadow-lg transition-all`}
+                      title={`${district.name}${district.cost ? ` - ${district.cost}` : ''}`}
                     >
-                      <Icon className="w-3 h-3 text-white mb-0.5" />
+                      <Icon className="w-4 h-4 text-white mb-0.5" />
                       {playersHere.length > 0 && (
                         <div className="absolute -top-1 -right-1 flex gap-0.5">
                           {playersHere.map(p => (
-                            <div key={p.id} className={`w-2 h-2 rounded-full ${p.color} border border-white shadow-lg`}></div>
+                            <div key={p.id} className={`w-2.5 h-2.5 rounded-full ${p.color} border border-white shadow-lg`}></div>
                           ))}
                         </div>
                       )}
                       {owner && (
-                        <div className={`absolute -bottom-1 -left-1 w-2 h-2 rounded-full ${owner.color} border border-white`}></div>
+                        <div className={`absolute -bottom-1 -left-1 w-3 h-3 rounded-full ${owner.color} border-2 border-white shadow-md`}></div>
+                      )}
+                      {district.type === 'jail' && (
+                        <span className="absolute top-0 left-0 text-[8px] bg-red-500 px-1 rounded">JAIL</span>
                       )}
                     </div>
                   );
                 })}
               </div>
+              <div className="mt-3 text-xs text-gray-400 flex items-center gap-4">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-white border border-gray-400"></div>
+                  <span>Player</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-white border border-gray-400"></div>
+                  <span>Owner</span>
+                </div>
+              </div>
             </div>
 
             <div className="bg-black/40 backdrop-blur-xl rounded-xl p-4 border border-white/10">
-              <h3 className="font-bold mb-2">Activity Log</h3>
+              <h3 className="font-bold mb-2 flex items-center gap-2">
+                📜 Activity Log
+              </h3>
               <div className="space-y-1 text-xs font-mono max-h-40 overflow-y-auto">
                 {gameLog.map((log, idx) => (
-                  <div key={idx} className="text-gray-300 bg-white/5 px-2 py-1 rounded">{log}</div>
+                  <div key={idx} className="text-gray-300 bg-white/5 px-3 py-1.5 rounded hover:bg-white/10 transition-colors">
+                    {log}
+                  </div>
                 ))}
               </div>
             </div>
@@ -570,18 +837,37 @@ export default function CapitalWars() {
                 <h2 className="text-2xl font-bold">{showDistrictModal.name}</h2>
               </div>
               <div className="space-y-3 mb-6">
+                {showDistrictModal.type === 'utility' && (
+                  <div className="bg-blue-500/20 border border-blue-400 rounded p-2 text-sm">
+                    <span className="font-bold">Utility:</span> Rent = Dice roll × (4 if 1 owned, 10 if both owned)
+                  </div>
+                )}
+                {showDistrictModal.type === 'transport' && (
+                  <div className="bg-purple-500/20 border border-purple-400 rounded p-2 text-sm">
+                    <span className="font-bold">Transport:</span> $25, $50, $100, $200 based on number owned
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Cost:</span>
                   <span className="font-bold text-green-400 text-lg">${showDistrictModal.cost?.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Base Rent:</span>
-                  <span className="font-bold">${showDistrictModal.rent?.[0]}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Region:</span>
-                  <span className="font-bold">{showDistrictModal.region}</span>
-                </div>
+                {showDistrictModal.rent && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Base Rent:</span>
+                    <span className="font-bold">${showDistrictModal.rent[0]}</span>
+                  </div>
+                )}
+                {showDistrictModal.region && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Region:</span>
+                    <span className="font-bold">{showDistrictModal.region}</span>
+                  </div>
+                )}
+                {showDistrictModal.group && (
+                  <div className="bg-yellow-500/20 border border-yellow-400 rounded p-2 text-sm">
+                    💡 <span className="font-bold">Tip:</span> Own all in this group for 2× rent!
+                  </div>
+                )}
                 <div className="h-px bg-white/20 my-3"></div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Your Cash:</span>
@@ -594,13 +880,13 @@ export default function CapitalWars() {
                 <button 
                   onClick={buyDistrict}
                   disabled={!currentPlayer || !showDistrictModal.cost || currentPlayer.cash < showDistrictModal.cost}
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-3 rounded-lg font-bold transition-all transform hover:scale-105"
+                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-3 rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg"
                 >
-                  Acquire
+                  Buy Property
                 </button>
                 <button 
                   onClick={() => setShowDistrictModal(null)}
-                  className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 py-3 rounded-lg font-bold transition-all transform hover:scale-105"
+                  className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 py-3 rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg"
                 >
                   Pass
                 </button>
