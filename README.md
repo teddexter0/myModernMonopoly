@@ -3,6 +3,8 @@
 **The Modern Economic Strategy Game for the Digital Age**
 
 > Build your corporate empire in a world of AI, space exploration, and dynamic markets. Learn real finance while dominating the global economy.
+> [Live Demo](https://modern-monopoly.vercel.app/)
+
 
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE.md)
 [![Version](https://img.shields.io/badge/version-0.1.0--alpha-blue.svg)](package.json)
@@ -45,31 +47,6 @@
 - Economics classrooms
 
 **Legally Distinct:** This is an original work inspired by classic property trading games, not affiliated with any existing IP.
-
----
-
-## ⚡ QUICK START
-
-### Prerequisites
-- Node.js 18+ installed
-- npm or yarn package manager
-
-### Run the Prototype (5 seconds)
-
-```bash
-# Clone or download the repository
-cd capital-wars-2050
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Open browser to http://localhost:3000
-```
-
-**That's it!** You're now playing Capital Wars 2050.
 
 ---
 
@@ -136,80 +113,10 @@ npm run dev
 
 ---
 
-## 🛠️ TECHNOLOGY STACK
-
-### Current (Prototype)
-- **Framework:** React 18 + Next.js 14
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS
-- **Icons:** Lucide React
-- **State:** React Hooks (useState)
-
-### Planned (Production)
-- **Backend:** NestJS + Node.js
-- **Database:** PostgreSQL + Prisma ORM
-- **Real-time:** Socket.io / Supabase
-- **Auth:** NextAuth.js
-- **Payments:** Stripe
-- **Hosting:** Vercel (frontend) + Railway (backend)
-- **Analytics:** PostHog
-- **Monitoring:** Sentry
-
----
-
-## 💻 INSTALLATION
-
-### Option 1: Quick Start (Single File)
-
-1. **Download the game file**
-2. **Create a Next.js app:**
-
-```bash
-npx create-next-app@latest capital-wars --typescript --tailwind --app
-cd capital-wars
-npm install lucide-react
-```
 
 3. **Replace `app/page.tsx` with the game code**
 4. **Run:** `npm run dev`
 
-### Option 2: Full Repository Setup
-
-```bash
-# Clone repository
-git clone https://github.com/yourusername/capital-wars-2050.git
-cd capital-wars-2050
-
-# Install dependencies
-npm install
-
-# Run development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-```
-
-### Environment Variables
-
-Create `.env.local`:
-
-```env
-# Optional for analytics
-NEXT_PUBLIC_POSTHOG_KEY=your_key_here
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
----
-
-## 🔧 DEVELOPMENT
-
-### Project Structure
-
-```
 capital-wars-2050/
 ├── app/
 │   ├── page.tsx              # Main game component
@@ -368,10 +275,9 @@ Email: dev@capitalwars.com with:
 ### Copyright
 
 ```
-Copyright © 2025 [Your Name/Company Name]. All Rights Reserved.
-
+Copyright © 2025 Sande Ted Dexter
 Capital Wars 2050™ and all associated trademarks, logos, and game 
-assets are the exclusive property of [Your Company Name].
+assets are the exclusive property of Sande Ted Dexter
 ```
 
 ### Proprietary Software License
@@ -426,21 +332,14 @@ For commercial use, white-label, or custom development:
 ## 📞 CONTACT
 
 ### Creator
-- **Name:** [Your Name]
-- **Email:** contact@capitalwars.com
-- **Twitter/X:** @capitalwars2050
-- **LinkedIn:** [Your LinkedIn]
-
-### Business Inquiries
-- **Schools/Universities:** education@capitalwars.com
-- **Corporate Training:** enterprise@capitalwars.com
-- **Press/Media:** press@capitalwars.com
-- **Partnerships:** partners@capitalwars.com
+- **Name:** Sande Ted Dexter
+- **Email:** teddexter0@gmail.com
+- **LinkedIn:** https://www.linkedin.com/in/teddexter0
+ 
 
 ### Community
 - **Discord:** [Coming Soon]
-- **Reddit:** r/CapitalWars2050 [Coming Soon]
-- **Newsletter:** [Signup Link]
+- **Reddit:** r/CapitalWars2050 [Coming Soon] 
 
 ---
 
@@ -482,7 +381,7 @@ If you find this project interesting, please star it! It helps us know there's i
 
 Found a security vulnerability? **DO NOT** open a public issue.
 
-Email: security@capitalwars.com with:
+Email: teddexter0@gmail.com with:
 - Description of the vulnerability
 - Steps to reproduce
 - Your contact information
