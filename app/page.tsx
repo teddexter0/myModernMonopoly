@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { DollarSign, TrendingUp, Building2, Zap, Users, Globe, Rocket, Brain, Shield, Factory, Landmark, Package, ShoppingCart, X } from 'lucide-react';
 
 // TypeScript interfaces
@@ -38,13 +38,6 @@ interface Stock {
   volatility: number;
   icon: React.FC<any>;
   color: string;
-}
-
-interface GameEvent {
-  name: string;
-  effect: string;
-  type: string;
-  icon: React.FC<any>;
 }
 
 interface StockCartItem {
@@ -127,15 +120,17 @@ export default function CapitalWars() {
   const [playerCount, setPlayerCount] = useState(2);
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
-  const [dice, setDice] = useState([1, 1]);
+  const [dice, setDice] = useState<[number, number]>([1, 1]);
   const [gameLog, setGameLog] = useState<string[]>(['Welcome to Capital Wars 2050!']);
-  const [turnNumber, setTurnNumber] = useState(0);
+  const [roundNumber, setRoundNumber] = useState(0);
   const [stockPrices, setStockPrices] = useState(STOCKS);
   const [showDistrictModal, setShowDistrictModal] = useState<District | null>(null);
   const [stockCart, setStockCart] = useState<StockCartItem[]>([]);
   const [showStockCart, setShowStockCart] = useState(false);
   const [turnPhase, setTurnPhase] = useState<'roll' | 'action' | 'end'>('roll');
   const [rolledThisTurn, setRolledThisTurn] = useState(false);
+  // FIX: track when doubles were rolled so player can roll again
+  const [canRollAgain, setCanRollAgain] = useState(false);
 
   const currentPlayer = players[currentPlayerIndex];
 
@@ -160,10 +155,9 @@ export default function CapitalWars() {
     }));
     setPlayers(newPlayers);
     setGameStarted(true);
-    addLog(`${newPlayers[0].name} starts the game!`);
+    addLog(`Game started! ${newPlayers[0].name} goes first.`);
   };
 
-  // Simulate physics-based dice roll
   const simulateDiceRoll = (): Promise<[number, number]> => {
     return new Promise((resolve) => {
       let rolls = 0;
@@ -173,7 +167,6 @@ export default function CapitalWars() {
         const d2 = Math.floor(Math.random() * 6) + 1;
         setDice([d1, d2]);
         rolls++;
-        
         if (rolls >= maxRolls) {
           clearInterval(interval);
           resolve([d1, d2]);
@@ -183,32 +176,39 @@ export default function CapitalWars() {
   };
 
   const rollDice = async () => {
-    if (!currentPlayer || rolledThisTurn) return;
+    // FIX: allow rolling when canRollAgain is true (after doubles), even if rolledThisTurn
+    if (!currentPlayer || (rolledThisTurn && !canRollAgain)) return;
 
-    // Handle jail
+    // Consume the roll-again opportunity before rolling
+    setCanRollAgain(false);
+
+    // Handle jail roll
     if (currentPlayer.inJail) {
       const [d1, d2] = await simulateDiceRoll();
-      
+      // FIX: deep-copy each player object to avoid mutating existing state references
+      const updatedPlayers = players.map(p => ({ ...p }));
+
       if (d1 === d2) {
-        addLog(`${currentPlayer.name} rolled doubles! Released from detention!`);
-        const updatedPlayers = [...players];
+        addLog(`${currentPlayer.name} rolled doubles (${d1}+${d2})! Released from detention!`);
         updatedPlayers[currentPlayerIndex].inJail = false;
         updatedPlayers[currentPlayerIndex].jailTurns = 0;
+        updatedPlayers[currentPlayerIndex].doubles = 0;
         setPlayers(updatedPlayers);
-        movePlayer(d1 + d2);
+        // FIX: pass updatedPlayers and actual dice values through to avoid stale closures
+        movePlayer(d1 + d2, updatedPlayers, [d1, d2]);
       } else {
-        const updatedPlayers = [...players];
         updatedPlayers[currentPlayerIndex].jailTurns++;
-        
         if (updatedPlayers[currentPlayerIndex].jailTurns >= 3) {
-          addLog(`${currentPlayer.name} paid $50 to leave detention after 3 turns`);
-          updatedPlayers[currentPlayerIndex].cash -= 50;
+          // On the 3rd failed attempt, must pay $50 and move
+          addLog(`${currentPlayer.name} paid $50 fine to leave detention!`);
+          updatedPlayers[currentPlayerIndex].cash = Math.max(0, updatedPlayers[currentPlayerIndex].cash - 50);
           updatedPlayers[currentPlayerIndex].inJail = false;
           updatedPlayers[currentPlayerIndex].jailTurns = 0;
           setPlayers(updatedPlayers);
-          movePlayer(d1 + d2);
+          movePlayer(d1 + d2, updatedPlayers, [d1, d2]);
         } else {
-          addLog(`${currentPlayer.name} didn't roll doubles. ${3 - updatedPlayers[currentPlayerIndex].jailTurns} turns left`);
+          const turnsLeft = 3 - updatedPlayers[currentPlayerIndex].jailTurns;
+          addLog(`${currentPlayer.name} rolled ${d1}+${d2}. No doubles — ${turnsLeft} turn(s) left in detention.`);
           setPlayers(updatedPlayers);
           setTurnPhase('end');
         }
@@ -220,87 +220,102 @@ export default function CapitalWars() {
     // Normal roll
     const [d1, d2] = await simulateDiceRoll();
     const isDoubles = d1 === d2;
-    
+
     addLog(`${currentPlayer.name} rolled ${d1} + ${d2} = ${d1 + d2}${isDoubles ? ' (DOUBLES!)' : ''}`);
-    
-    const updatedPlayers = [...players];
-    
+
+    // FIX: deep-copy players to avoid mutating existing state references
+    const updatedPlayers = players.map(p => ({ ...p }));
+
     if (isDoubles) {
       updatedPlayers[currentPlayerIndex].doubles++;
+
       if (updatedPlayers[currentPlayerIndex].doubles >= 3) {
-        addLog(`${currentPlayer.name} rolled 3 doubles! Go to detention!`);
+        // 3 doubles in a row = go to jail, turn ends
+        addLog(`${currentPlayer.name} rolled 3 doubles in a row! Sent to detention!`);
         updatedPlayers[currentPlayerIndex].position = 10;
         updatedPlayers[currentPlayerIndex].inJail = true;
         updatedPlayers[currentPlayerIndex].doubles = 0;
         setPlayers(updatedPlayers);
-        setTurnPhase('end');
         setRolledThisTurn(true);
+        setCanRollAgain(false);
+        setTurnPhase('end');
         return;
       }
+
+      // FIX: move player on doubles, then grant an extra roll
+      setPlayers(updatedPlayers);
+      movePlayer(d1 + d2, updatedPlayers, [d1, d2]);
+      setRolledThisTurn(true);
+      setCanRollAgain(true);  // FIX: was never set before — doubles couldn't re-roll
+      setTurnPhase('roll');   // stay in roll phase so they can roll again
     } else {
       updatedPlayers[currentPlayerIndex].doubles = 0;
-    }
-    
-    setPlayers(updatedPlayers);
-    movePlayer(d1 + d2);
-    setRolledThisTurn(true);
-    
-    if (!isDoubles) {
+      setPlayers(updatedPlayers);
+      movePlayer(d1 + d2, updatedPlayers, [d1, d2]);
+      setRolledThisTurn(true);
+      setCanRollAgain(false);
       setTurnPhase('action');
     }
   };
 
-  const movePlayer = (steps: number) => {
-    if (!currentPlayer) return;
+  // FIX: takes currentPlayers & diceValues so we never read stale closure state
+  const movePlayer = (steps: number, currentPlayers: Player[], diceValues: [number, number]) => {
+    const player = currentPlayers[currentPlayerIndex];
+    const newPosition = (player.position + steps) % 40;
+    // FIX: reliable passedHQ — checks raw sum before modulo, not newPos < oldPos
+    const passedHQ = (player.position + steps) >= 40;
 
-    const newPosition = (currentPlayer.position + steps) % 40;
-    const passedHQ = newPosition < currentPlayer.position;
-    
-    const updatedPlayers = [...players];
+    const updatedPlayers = currentPlayers.map(p => ({ ...p }));
     updatedPlayers[currentPlayerIndex].position = newPosition;
-    
+
     if (passedHQ) {
       updatedPlayers[currentPlayerIndex].cash += 200;
-      addLog(`${currentPlayer.name} passed HQ! Collected $200`);
+      updatedPlayers[currentPlayerIndex].netWorth += 200;
+      addLog(`${player.name} passed HQ! Collected $200`);
     }
-    
+
     setPlayers(updatedPlayers);
-    
+
     const landedDistrict = DISTRICTS[newPosition];
-    handleLanding(landedDistrict, updatedPlayers[currentPlayerIndex]);
-    
-    if (turnNumber % 5 === 0 && turnNumber > 0) {
-      updateMarket(steps);
-    }
-    
-    setTurnNumber(prev => prev + 1);
+    // FIX: pass updatedPlayers and diceValues forward — no more stale closure reads
+    handleLanding(landedDistrict, updatedPlayers[currentPlayerIndex], updatedPlayers, diceValues);
   };
 
-  const handleLanding = (district: District, player: Player) => {
+  // FIX: takes currentPlayers and diceValues — all property lookups use fresh data
+  const handleLanding = (
+    district: District,
+    player: Player,
+    currentPlayers: Player[],
+    diceValues: [number, number]
+  ) => {
     if (district.type === 'gotojail') {
-      addLog(`${player.name} sent to detention!`);
-      const updatedPlayers = [...players];
-      const idx = players.findIndex(p => p.id === player.id);
-      updatedPlayers[idx].position = 10;
-      updatedPlayers[idx].inJail = true;
-      updatedPlayers[idx].doubles = 0;
+      addLog(`${player.name} is sent to detention!`);
+      const updatedPlayers = currentPlayers.map(p => ({ ...p }));
+      updatedPlayers[currentPlayerIndex].position = 10;
+      updatedPlayers[currentPlayerIndex].inJail = true;
+      updatedPlayers[currentPlayerIndex].doubles = 0;
       setPlayers(updatedPlayers);
+      setCanRollAgain(false);
       setTurnPhase('end');
     } else if (district.type === 'jail') {
       addLog(`${player.name} is just visiting detention.`);
     } else if (district.type === 'special' && district.name === 'Free Market') {
       addLog(`${player.name} enjoys free market benefits!`);
     } else if (district.type === 'tax' && district.amount) {
-      addLog(`${player.name} pays $${district.amount} ${district.name}`);
+      addLog(`${player.name} pays $${district.amount} for ${district.name}`);
       updatePlayerCash(player.id, -district.amount);
     } else if (district.type === 'card') {
-      drawChanceCard(player);
+      // FIX: pass currentPlayers so drawChanceCard doesn't read stale state
+      drawChanceCard(player, currentPlayers);
     } else if (district.type === 'utility') {
-      handleUtilityLanding(district, player);
+      // FIX: pass currentPlayers and diceValues
+      handleUtilityLanding(district, player, currentPlayers, diceValues);
     } else if (district.type === 'transport') {
-      handleTransportLanding(district, player);
+      // FIX: pass currentPlayers
+      handleTransportLanding(district, player, currentPlayers);
     } else if (district.cost && !district.type) {
-      const owner = players.find(p => p.properties.includes(district.id));
+      // FIX: use currentPlayers.find instead of stale players.find
+      const owner = currentPlayers.find(p => p.properties.includes(district.id));
       if (!owner) {
         setShowDistrictModal(district);
       } else if (owner.id !== player.id) {
@@ -308,57 +323,69 @@ export default function CapitalWars() {
         addLog(`${player.name} pays $${rent} rent to ${owner.name}`);
         updatePlayerCash(player.id, -rent);
         updatePlayerCash(owner.id, rent);
+      } else {
+        addLog(`${player.name} landed on their own property.`);
       }
     }
   };
 
-  const drawChanceCard = (player: Player) => {
+  // FIX: takes currentPlayers; also ends turn properly when jail card drawn
+  const drawChanceCard = (player: Player, currentPlayers: Player[]) => {
     const card = CHANCE_CARDS[Math.floor(Math.random() * CHANCE_CARDS.length)];
     addLog(`${player.name} drew: "${card.text}"`);
-    
+
     if (card.special === 'jail') {
-      const updatedPlayers = [...players];
-      const idx = players.findIndex(p => p.id === player.id);
-      updatedPlayers[idx].position = 10;
-      updatedPlayers[idx].inJail = true;
+      const updatedPlayers = currentPlayers.map(p => ({ ...p }));
+      updatedPlayers[currentPlayerIndex].position = 10;
+      updatedPlayers[currentPlayerIndex].inJail = true;
+      updatedPlayers[currentPlayerIndex].doubles = 0;
       setPlayers(updatedPlayers);
+      setCanRollAgain(false);
+      setTurnPhase('end'); // FIX: jail card now correctly ends the current turn
     } else if (card.special === 'go') {
-      const updatedPlayers = [...players];
-      const idx = players.findIndex(p => p.id === player.id);
-      updatedPlayers[idx].position = 0;
-      updatedPlayers[idx].cash += 200;
+      const updatedPlayers = currentPlayers.map(p => ({ ...p }));
+      const oldPos = updatedPlayers[currentPlayerIndex].position;
+      updatedPlayers[currentPlayerIndex].position = 0;
+      // Collect $200 when advancing to HQ (standard Monopoly rule)
+      if (oldPos !== 0) {
+        updatedPlayers[currentPlayerIndex].cash += 200;
+        updatedPlayers[currentPlayerIndex].netWorth += 200;
+        addLog(`${player.name} advanced to HQ! Collected $200`);
+      }
       setPlayers(updatedPlayers);
     } else if (card.amount) {
       updatePlayerCash(player.id, card.amount);
     }
   };
 
-  const handleUtilityLanding = (district: District, player: Player) => {
-    const owner = players.find(p => p.properties.includes(district.id));
+  // FIX: uses diceValues param instead of stale dice state; uses currentPlayers for ownership
+  const handleUtilityLanding = (
+    district: District,
+    player: Player,
+    currentPlayers: Player[],
+    diceValues: [number, number]
+  ) => {
+    const owner = currentPlayers.find(p => p.properties.includes(district.id));
     if (!owner) {
       setShowDistrictModal(district);
     } else if (owner.id !== player.id) {
-      const utilitiesOwned = owner.properties.filter(id => {
-        const d = DISTRICTS[id];
-        return d.type === 'utility';
-      }).length;
+      const utilitiesOwned = owner.properties.filter(id => DISTRICTS[id].type === 'utility').length;
       const multiplier = utilitiesOwned === 2 ? 10 : 4;
-      const rent = (dice[0] + dice[1]) * multiplier;
-      addLog(`${player.name} pays $${rent} (${dice[0]}+${dice[1]} × ${multiplier}) to ${owner.name}`);
+      // FIX: use passed diceValues, not the stale dice state variable
+      const rent = (diceValues[0] + diceValues[1]) * multiplier;
+      addLog(`${player.name} pays $${rent} (${diceValues[0]}+${diceValues[1]} × ${multiplier}) to ${owner.name}`);
       updatePlayerCash(player.id, -rent);
       updatePlayerCash(owner.id, rent);
     }
   };
 
-  const handleTransportLanding = (district: District, player: Player) => {
-    const owner = players.find(p => p.properties.includes(district.id));
+  // FIX: uses currentPlayers for ownership lookup
+  const handleTransportLanding = (district: District, player: Player, currentPlayers: Player[]) => {
+    const owner = currentPlayers.find(p => p.properties.includes(district.id));
     if (!owner) {
       setShowDistrictModal(district);
     } else if (owner.id !== player.id) {
-      const transportsOwned = owner.properties.filter(id => {
-        const d = DISTRICTS[id];
-        return d.type === 'transport';
-      }).length;
+      const transportsOwned = owner.properties.filter(id => DISTRICTS[id].type === 'transport').length;
       const rent = 25 * Math.pow(2, transportsOwned - 1);
       addLog(`${player.name} pays $${rent} transport fee to ${owner.name}`);
       updatePlayerCash(player.id, -rent);
@@ -368,35 +395,35 @@ export default function CapitalWars() {
 
   const calculateRent = (district: District, owner: Player) => {
     if (!district.rent || !district.group) return district.rent?.[0] || 0;
-    
     const groupProperties = DISTRICTS.filter(d => d.group === district.group && d.cost);
     const ownsAll = groupProperties.every(d => owner.properties.includes(d.id));
-    
     return ownsAll ? district.rent[0] * 2 : district.rent[0];
   };
 
   const buyDistrict = () => {
     if (!showDistrictModal || !currentPlayer) return;
-    
     const district = showDistrictModal;
     if (district.cost && currentPlayer.cash >= district.cost) {
-      const updatedPlayers = [...players];
+      const updatedPlayers = players.map(p => ({ ...p }));
       updatedPlayers[currentPlayerIndex].cash -= district.cost;
-      updatedPlayers[currentPlayerIndex].properties.push(district.id);
-      updatedPlayers[currentPlayerIndex].netWorth += district.cost * 0.8;
+      updatedPlayers[currentPlayerIndex].properties = [
+        ...updatedPlayers[currentPlayerIndex].properties,
+        district.id,
+      ];
+      // Net worth: cash decreases by cost, but property asset added at cost — net neutral
+      // We still track it so UI stays consistent
       setPlayers(updatedPlayers);
       addLog(`${currentPlayer.name} acquired ${district.name} for $${district.cost}`);
       setShowDistrictModal(null);
     }
   };
 
+  // Uses functional update so it always gets the latest state (safe for chained calls)
   const updatePlayerCash = (playerId: number, amount: number) => {
-    setPlayers(prev => prev.map(p => 
-      p.id === playerId ? { 
-        ...p, 
-        cash: Math.max(0, p.cash + amount), 
-        netWorth: Math.max(0, p.netWorth + amount) 
-      } : p
+    setPlayers(prev => prev.map(p =>
+      p.id === playerId
+        ? { ...p, cash: Math.max(0, p.cash + amount), netWorth: Math.max(0, p.netWorth + amount) }
+        : p
     ));
   };
 
@@ -408,24 +435,25 @@ export default function CapitalWars() {
         const change = (diceSum - 7) * stock.volatility * 0.1;
         updated[ticker] = {
           ...stock,
-          price: Math.max(10, Math.floor(stock.price * (1 + change)))
+          price: Math.max(10, Math.floor(stock.price * (1 + change))),
         };
       });
       return updated;
     });
-    addLog('📊 Market prices updated!');
+    addLog('Market prices updated!');
   };
 
   const addToCart = (ticker: string) => {
-    const stock = stockPrices[ticker];
+    const currentPrice = stockPrices[ticker].price;
     const existing = stockCart.find(item => item.ticker === ticker);
-    
     if (existing) {
-      setStockCart(prev => prev.map(item =>
-        item.ticker === ticker ? { ...item, quantity: item.quantity + 1 } : item
-      ));
+      setStockCart(prev =>
+        prev.map(item =>
+          item.ticker === ticker ? { ...item, quantity: item.quantity + 1 } : item
+        )
+      );
     } else {
-      setStockCart(prev => [...prev, { ticker, quantity: 1, price: stock.price }]);
+      setStockCart(prev => [...prev, { ticker, quantity: 1, price: currentPrice }]);
     }
   };
 
@@ -437,29 +465,30 @@ export default function CapitalWars() {
     if (quantity <= 0) {
       removeFromCart(ticker);
     } else {
-      setStockCart(prev => prev.map(item =>
-        item.ticker === ticker ? { ...item, quantity } : item
-      ));
+      setStockCart(prev =>
+        prev.map(item => (item.ticker === ticker ? { ...item, quantity } : item))
+      );
     }
   };
 
   const checkoutCart = () => {
     if (!currentPlayer || stockCart.length === 0) return;
-    
-    const total = stockCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    
+    // Use current live market prices at checkout time
+    const total = stockCart.reduce(
+      (sum, item) => sum + (stockPrices[item.ticker]?.price ?? item.price) * item.quantity,
+      0
+    );
     if (currentPlayer.cash >= total) {
-      const updatedPlayers = [...players];
+      const updatedPlayers = players.map(p => ({ ...p }));
       updatedPlayers[currentPlayerIndex].cash -= total;
-      
       stockCart.forEach(item => {
         const currentQty = updatedPlayers[currentPlayerIndex].stocks[item.ticker] || 0;
-        updatedPlayers[currentPlayerIndex].stocks[item.ticker] = currentQty + item.quantity;
+        updatedPlayers[currentPlayerIndex].stocks = {
+          ...updatedPlayers[currentPlayerIndex].stocks,
+          [item.ticker]: currentQty + item.quantity,
+        };
       });
-      
-      updatedPlayers[currentPlayerIndex].netWorth += total * 0.8;
       setPlayers(updatedPlayers);
-      
       addLog(`${currentPlayer.name} bought ${stockCart.length} stock type(s) for $${total}`);
       setStockCart([]);
       setShowStockCart(false);
@@ -468,14 +497,25 @@ export default function CapitalWars() {
     }
   };
 
+  // FIX: market update moved here — triggers every 3 full rounds, not on every dice move
   const endTurn = () => {
-    setCurrentPlayerIndex((prev) => (prev + 1) % players.length);
+    const nextIndex = (currentPlayerIndex + 1) % players.length;
+    const completingRound = nextIndex === 0;
+    const newRound = completingRound ? roundNumber + 1 : roundNumber;
+
+    if (completingRound && newRound > 0 && newRound % 3 === 0) {
+      updateMarket(dice[0] + dice[1]);
+    }
+
+    setCurrentPlayerIndex(nextIndex);
+    setRoundNumber(newRound);
     setShowDistrictModal(null);
     setTurnPhase('roll');
     setRolledThisTurn(false);
+    setCanRollAgain(false); // FIX: always clear doubles state between turns
     setStockCart([]);
     setShowStockCart(false);
-    addLog(`--- ${players[(currentPlayerIndex + 1) % players.length]?.name}'s turn ---`);
+    addLog(`--- ${players[nextIndex]?.name}'s turn ---`);
   };
 
   const getDistrictColor = (color: string) => {
@@ -495,14 +535,21 @@ export default function CapitalWars() {
     return colors[color] || 'bg-gray-400';
   };
 
-  const cartTotal = stockCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  // Use live market prices for cart total
+  const cartTotal = stockCart.reduce(
+    (sum, item) => sum + (stockPrices[item.ticker]?.price ?? item.price) * item.quantity,
+    0
+  );
 
   if (!gameStarted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white flex items-center justify-center p-4">
         <div className="max-w-2xl w-full bg-black/40 backdrop-blur-xl rounded-2xl p-8 border border-white/10">
           <div className="text-center mb-8">
-            <h1 className="text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+            <h1
+              className="text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400"
+              style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+            >
               CAPITAL WARS
             </h1>
             <p className="text-3xl text-gray-200 mb-3 font-semibold">2050</p>
@@ -511,7 +558,9 @@ export default function CapitalWars() {
 
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-bold mb-3 text-gray-200 uppercase tracking-wide">Select Corporations</label>
+              <label className="block text-sm font-bold mb-3 text-gray-200 uppercase tracking-wide">
+                Select Corporations
+              </label>
               <div className="grid grid-cols-3 gap-3">
                 {[2, 3, 4].map(num => (
                   <button
@@ -540,13 +589,16 @@ export default function CapitalWars() {
             <div className="bg-white/5 rounded-xl p-5 text-sm text-gray-300 border border-white/10">
               <div className="font-bold text-white mb-3 text-base">🎮 MONOPOLY-STYLE FEATURES:</div>
               <ul className="space-y-2 leading-relaxed">
-                <li>• Roll doubles to get extra turns</li>
-                <li>• Jail/Detention mechanics (3 turns or pay $50)</li>
+                <li>• Roll doubles to get extra turns (roll again after each double!)</li>
+                <li>• Jail/Detention mechanics (3 attempts to roll doubles, then pay $50)</li>
                 <li>• Chance cards with rewards & penalties</li>
-                <li>• Dynamic rent based on monopolies</li>
+                <li>• Dynamic rent based on monopolies (own all in a group = 2× rent)</li>
                 <li>• Stock trading with shopping cart</li>
                 <li>• Utilities & transport stations</li>
               </ul>
+              <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-300 text-xs">
+                ⚠️ <strong>Hotseat mode:</strong> Pass the device between players on your turn. Real-time multiplayer across separate devices is not yet supported.
+              </div>
             </div>
           </div>
         </div>
@@ -558,29 +610,53 @@ export default function CapitalWars() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white p-4">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-4">
-          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-pink-400" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+          <h1
+            className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-pink-400"
+            style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
+          >
             CAPITAL WARS 2050
           </h1>
-          <div className="text-sm text-gray-300 mt-2 font-medium">
-            Turn {turnNumber} | Phase: {turnPhase.toUpperCase()}
+          <div className="text-sm text-gray-300 mt-1 font-medium">
+            Round {roundNumber + 1}
+            {canRollAgain && (
+              <span className="ml-2 text-yellow-300 font-bold animate-pulse">
+                🎯 DOUBLES — Roll again!
+              </span>
+            )}
+          </div>
+          {/* Hotseat reminder */}
+          <div className="mt-2 inline-block text-xs bg-white/5 border border-white/10 rounded px-3 py-1 text-gray-400">
+            Hotseat — pass the device on each turn
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Left column */}
           <div className="space-y-4">
+            {/* Players panel */}
             <div className="bg-black/40 backdrop-blur-xl rounded-xl p-4 border border-white/10">
               <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
                 <Users className="w-5 h-5" />
                 Corporations
               </h2>
               {players.map((player, idx) => (
-                <div key={player.id} className={`mb-3 p-3 rounded-lg border-2 transition-all ${
-                  idx === currentPlayerIndex ? `${player.border} bg-white/10 shadow-lg` : 'border-white/5 bg-white/5'
-                }`}>
+                <div
+                  key={player.id}
+                  className={`mb-3 p-3 rounded-lg border-2 transition-all ${
+                    idx === currentPlayerIndex
+                      ? `${player.border} bg-white/10 shadow-lg`
+                      : 'border-white/5 bg-white/5'
+                  }`}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <div className={`w-4 h-4 rounded-full ${player.color} shadow-md`}></div>
-                      <span className="font-bold text-sm">{player.name}</span>
+                      <span className="font-bold text-sm">
+                        {player.name}
+                        {idx === currentPlayerIndex && (
+                          <span className="ml-1 text-yellow-300 text-xs">▶ YOUR TURN</span>
+                        )}
+                      </span>
                     </div>
                     {player.inJail && (
                       <span className="text-xs bg-red-500/30 px-2 py-1 rounded border border-red-400">
@@ -610,6 +686,7 @@ export default function CapitalWars() {
               ))}
             </div>
 
+            {/* Stock market */}
             <div className="bg-black/40 backdrop-blur-xl rounded-xl p-4 border border-white/10">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-xl font-bold flex items-center gap-2">
@@ -638,35 +715,41 @@ export default function CapitalWars() {
                     </button>
                   </div>
                   <div className="space-y-2 mb-2">
-                    {stockCart.map(item => (
-                      <div key={item.ticker} className="flex items-center justify-between text-xs bg-white/5 p-2 rounded">
-                        <div>
-                          <div className="font-bold">{item.ticker}</div>
-                          <div className="text-gray-400">${item.price} × {item.quantity}</div>
+                    {stockCart.map(item => {
+                      const livePrice = stockPrices[item.ticker]?.price ?? item.price;
+                      return (
+                        <div
+                          key={item.ticker}
+                          className="flex items-center justify-between text-xs bg-white/5 p-2 rounded"
+                        >
+                          <div>
+                            <div className="font-bold">{item.ticker}</div>
+                            <div className="text-gray-400">${livePrice} × {item.quantity}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => updateCartQuantity(item.ticker, item.quantity - 1)}
+                              className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
+                            >
+                              -
+                            </button>
+                            <span className="font-bold">{item.quantity}</span>
+                            <button
+                              onClick={() => updateCartQuantity(item.ticker, item.quantity + 1)}
+                              className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs"
+                            >
+                              +
+                            </button>
+                            <button
+                              onClick={() => removeFromCart(item.ticker)}
+                              className="bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded text-xs ml-1"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => updateCartQuantity(item.ticker, item.quantity - 1)}
-                            className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
-                          >
-                            -
-                          </button>
-                          <span className="font-bold">{item.quantity}</span>
-                          <button
-                            onClick={() => updateCartQuantity(item.ticker, item.quantity + 1)}
-                            className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs"
-                          >
-                            +
-                          </button>
-                          <button
-                            onClick={() => removeFromCart(item.ticker)}
-                            className="bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded text-xs ml-1"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <div className="flex items-center justify-between mb-2 pt-2 border-t border-white/20">
                     <span className="font-bold">Total:</span>
@@ -685,8 +768,13 @@ export default function CapitalWars() {
               {Object.entries(stockPrices).map(([ticker, stock]) => {
                 const Icon = stock.icon;
                 const owned = currentPlayer?.stocks[ticker] || 0;
+                // FIX: stock buying only allowed after rolling (can't buy before your roll)
+                const cantBuy = !currentPlayer || currentPlayer.cash < stock.price || turnPhase === 'roll';
                 return (
-                  <div key={ticker} className="mb-3 p-3 bg-white/5 rounded-lg border border-white/10 hover:border-white/20 transition-all">
+                  <div
+                    key={ticker}
+                    className="mb-3 p-3 bg-white/5 rounded-lg border border-white/10 hover:border-white/20 transition-all"
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <Icon className="w-4 h-4" />
@@ -700,12 +788,12 @@ export default function CapitalWars() {
                         {owned > 0 && <div className="text-xs text-cyan-400">Own: {owned}</div>}
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={() => addToCart(ticker)}
-                      disabled={!currentPlayer || currentPlayer.cash < stock.price}
+                      disabled={cantBuy}
                       className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-1.5 rounded text-xs font-bold transition-all"
                     >
-                      Add to Cart
+                      {turnPhase === 'roll' ? 'Roll first' : 'Add to Cart'}
                     </button>
                   </div>
                 );
@@ -713,7 +801,9 @@ export default function CapitalWars() {
             </div>
           </div>
 
+          {/* Right two columns */}
           <div className="lg:col-span-2 space-y-4">
+            {/* Dice & controls */}
             <div className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-white/10">
               <div className="text-center mb-4">
                 <h3 className="text-2xl font-bold mb-2 flex items-center justify-center gap-2">
@@ -722,13 +812,15 @@ export default function CapitalWars() {
                   {currentPlayer?.inJail && <span className="text-red-400 text-sm">(IN JAIL)</span>}
                 </h3>
                 <div className="text-sm text-gray-300">
-                  {currentPlayer?.inJail 
-                    ? 'Roll doubles to escape or wait 3 turns' 
-                    : turnPhase === 'roll' 
-                      ? 'Roll the dice to move' 
-                      : turnPhase === 'action'
-                        ? 'Take actions or end turn'
-                        : 'Processing...'}
+                  {currentPlayer?.inJail
+                    ? `Roll doubles to escape, or wait ${3 - currentPlayer.jailTurns} more turn(s) then pay $50`
+                    : canRollAgain
+                    ? 'You rolled doubles! Roll again or end your turn.'
+                    : turnPhase === 'roll'
+                    ? 'Roll the dice to move'
+                    : turnPhase === 'action'
+                    ? 'Take actions, buy stocks, or end your turn'
+                    : 'Processing...'}
                 </div>
               </div>
 
@@ -742,14 +834,15 @@ export default function CapitalWars() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <button 
+                <button
                   onClick={rollDice}
-                  disabled={rolledThisTurn || (turnPhase !== 'roll' && !currentPlayer?.inJail)}
+                  // FIX: allow rolling when canRollAgain (doubles), block otherwise if already rolled
+                  disabled={rolledThisTurn && !canRollAgain}
                   className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-4 rounded-lg font-bold text-lg flex items-center justify-center gap-2 transition-all transform hover:scale-105 shadow-lg"
                 >
-                  🎲 Roll Dice
+                  🎲 {canRollAgain ? 'Roll Again!' : 'Roll Dice'}
                 </button>
-                <button 
+                <button
                   onClick={endTurn}
                   disabled={!rolledThisTurn}
                   className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-4 rounded-lg font-bold text-lg flex items-center justify-center gap-2 transition-all transform hover:scale-105 shadow-lg"
@@ -758,42 +851,47 @@ export default function CapitalWars() {
                 </button>
               </div>
 
-              {currentPlayer?.doubles > 0 && !currentPlayer?.inJail && (
+              {canRollAgain && !currentPlayer?.inJail && (
                 <div className="mt-3 bg-yellow-500/20 border border-yellow-500 rounded-lg p-3 text-center">
                   <span className="text-yellow-300 font-bold">
-                    🎯 You rolled doubles! Roll again or end turn.
+                    🎯 Doubles! Roll again or end your turn.
                   </span>
                 </div>
               )}
             </div>
 
+            {/* Board */}
             <div className="bg-black/40 backdrop-blur-xl rounded-xl p-4 border border-white/10">
               <h3 className="font-bold mb-3 flex items-center gap-2">
                 <Globe className="w-5 h-5" />
                 Global Map
               </h3>
               <div className="grid grid-cols-10 gap-1">
-                {DISTRICTS.map((district) => {
+                {DISTRICTS.map(district => {
                   const playersHere = players.filter(p => p.position === district.id);
                   const owner = players.find(p => p.properties.includes(district.id));
                   const Icon = district.icon;
-                  
                   return (
-                    <div 
-                      key={district.id} 
+                    <div
+                      key={district.id}
                       className={`h-16 rounded-lg ${getDistrictColor(district.color)} relative border-2 border-white/30 flex flex-col items-center justify-center cursor-pointer hover:scale-110 hover:shadow-lg transition-all`}
-                      title={`${district.name}${district.cost ? ` - ${district.cost}` : ''}`}
+                      title={`${district.name}${district.cost ? ` — $${district.cost}` : ''}`}
                     >
                       <Icon className="w-4 h-4 text-white mb-0.5" />
                       {playersHere.length > 0 && (
                         <div className="absolute -top-1 -right-1 flex gap-0.5">
                           {playersHere.map(p => (
-                            <div key={p.id} className={`w-2.5 h-2.5 rounded-full ${p.color} border border-white shadow-lg`}></div>
+                            <div
+                              key={p.id}
+                              className={`w-2.5 h-2.5 rounded-full ${p.color} border border-white shadow-lg`}
+                            ></div>
                           ))}
                         </div>
                       )}
                       {owner && (
-                        <div className={`absolute -bottom-1 -left-1 w-3 h-3 rounded-full ${owner.color} border-2 border-white shadow-md`}></div>
+                        <div
+                          className={`absolute -bottom-1 -left-1 w-3 h-3 rounded-full ${owner.color} border-2 border-white shadow-md`}
+                        ></div>
                       )}
                       {district.type === 'jail' && (
                         <span className="absolute top-0 left-0 text-[8px] bg-red-500 px-1 rounded">JAIL</span>
@@ -805,22 +903,24 @@ export default function CapitalWars() {
               <div className="mt-3 text-xs text-gray-400 flex items-center gap-4">
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-white border border-gray-400"></div>
-                  <span>Player</span>
+                  <span>Player token (top-right)</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-white border border-gray-400"></div>
-                  <span>Owner</span>
+                  <span>Owner dot (bottom-left)</span>
                 </div>
               </div>
             </div>
 
+            {/* Activity log */}
             <div className="bg-black/40 backdrop-blur-xl rounded-xl p-4 border border-white/10">
-              <h3 className="font-bold mb-2 flex items-center gap-2">
-                📜 Activity Log
-              </h3>
+              <h3 className="font-bold mb-2 flex items-center gap-2">📜 Activity Log</h3>
               <div className="space-y-1 text-xs font-mono max-h-40 overflow-y-auto">
                 {gameLog.map((log, idx) => (
-                  <div key={idx} className="text-gray-300 bg-white/5 px-3 py-1.5 rounded hover:bg-white/10 transition-colors">
+                  <div
+                    key={idx}
+                    className="text-gray-300 bg-white/5 px-3 py-1.5 rounded hover:bg-white/10 transition-colors"
+                  >
                     {log}
                   </div>
                 ))}
@@ -829,11 +929,12 @@ export default function CapitalWars() {
           </div>
         </div>
 
+        {/* Buy district modal */}
         {showDistrictModal && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
             <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 max-w-md w-full border-2 border-cyan-500 shadow-2xl">
               <div className="flex items-center gap-3 mb-4">
-                {React.createElement(showDistrictModal.icon, { className: "w-8 h-8" })}
+                {React.createElement(showDistrictModal.icon, { className: 'w-8 h-8' })}
                 <h2 className="text-2xl font-bold">{showDistrictModal.name}</h2>
               </div>
               <div className="space-y-3 mb-6">
@@ -844,12 +945,14 @@ export default function CapitalWars() {
                 )}
                 {showDistrictModal.type === 'transport' && (
                   <div className="bg-purple-500/20 border border-purple-400 rounded p-2 text-sm">
-                    <span className="font-bold">Transport:</span> $25, $50, $100, $200 based on number owned
+                    <span className="font-bold">Transport:</span> $25 → $50 → $100 → $200 based on number owned
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Cost:</span>
-                  <span className="font-bold text-green-400 text-lg">${showDistrictModal.cost?.toLocaleString()}</span>
+                  <span className="font-bold text-green-400 text-lg">
+                    ${showDistrictModal.cost?.toLocaleString()}
+                  </span>
                 </div>
                 {showDistrictModal.rent && (
                   <div className="flex justify-between text-sm">
@@ -871,20 +974,30 @@ export default function CapitalWars() {
                 <div className="h-px bg-white/20 my-3"></div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-400">Your Cash:</span>
-                  <span className={`font-bold ${currentPlayer && showDistrictModal.cost && currentPlayer.cash >= showDistrictModal.cost ? 'text-green-400' : 'text-red-400'}`}>
+                  <span
+                    className={`font-bold ${
+                      currentPlayer && showDistrictModal.cost && currentPlayer.cash >= showDistrictModal.cost
+                        ? 'text-green-400'
+                        : 'text-red-400'
+                    }`}
+                  >
                     ${currentPlayer?.cash.toLocaleString()}
                   </span>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <button 
+                <button
                   onClick={buyDistrict}
-                  disabled={!currentPlayer || !showDistrictModal.cost || currentPlayer.cash < showDistrictModal.cost}
+                  disabled={
+                    !currentPlayer ||
+                    !showDistrictModal.cost ||
+                    currentPlayer.cash < showDistrictModal.cost
+                  }
                   className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-3 rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg"
                 >
                   Buy Property
                 </button>
-                <button 
+                <button
                   onClick={() => setShowDistrictModal(null)}
                   className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 py-3 rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg"
                 >
