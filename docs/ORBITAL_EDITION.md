@@ -32,8 +32,9 @@ Actual radial SVG sectors, concentric accelerator rails, travelling tokens, orbi
 
 ## Validation
 
+30 rules and simulation tests pass, with strict TypeScript checking. Vercel also completed production compilation; the deployment uses the standard Next.js output directory.
+
 `npm run test:ci` exercises transactions, building constraints, finite stock, auctions, rent, mortgages, debt/bankruptcy, doubles, audit, movement cards, trade acceptance, persistence and Sprint completion. `npm run type-check` checks the strict TypeScript application. `npm run build` provides production compilation and framework validation.
 
-Local verification on 30 October: 30 tests pass, including 2/3/4-player simulation invariants; strict TypeScript and whitespace checks pass. Production build verification is incomplete: the Windows sandbox denies Next.js output-directory creation (EPERM). No browser surface was available for visual inspection. GitHub writes returned 403, and automatic approval review rejected the source upload pending explicit repository/payload authorization; nothing was committed, pushed or deployed. The installed Next.js release is retained so package and lockfile stay consistent; the framework security patch must be installed and production-verified once publishing access is restored.
 
 Older standalone components and documentation predate this edition. They are not the active game engine.
