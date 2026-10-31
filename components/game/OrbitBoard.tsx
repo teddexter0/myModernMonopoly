@@ -69,12 +69,12 @@ export default function OrbitBoard({
           strokeWidth="2"
           strokeDasharray="70 2490"
         />
-        <circle cx="450" cy="450" r="231" fill="url(#core)" stroke="#45636b" />
+        <circle cx="450" cy="450" r="203" fill="url(#core)" stroke="#45636b" />
         <circle
           className="inner-beam"
           cx="450"
           cy="450"
-          r="225"
+          r="209"
           fill="none"
           stroke="#6df7d1"
           strokeWidth="1"
@@ -118,40 +118,55 @@ export default function OrbitBoard({
             >
               <path
                 className="sector-body"
-                d={sector(angle - 5.35, angle + 5.35, 244, 387)}
+                d={sector(angle - 5.4, angle + 5.4, 215, 399)}
               />
               <path
-                d={sector(angle - 5.35, angle + 5.35, 378, 387)}
+                d={sector(angle - 5.4, angle + 5.4, 388, 399)}
                 fill={color}
                 opacity=".9"
               />
               {owner && (
                 <path
-                  d={sector(angle - 5.35, angle + 5.35, 244, 251)}
+                  d={sector(angle - 5.4, angle + 5.4, 215, 224)}
                   fill={owner.color}
                 />
               )}
               <g
                 transform={`translate(${xy}) rotate(${angle + 90 + (b.id > 8 && b.id < 24 ? 180 : 0)})`}
               >
-                <text y="-33" className="sector-number">
+                <text y="-43" className="sector-number">
                   {String(b.id).padStart(2, "0")}
                 </text>
                 <b.icon
-                  x="-9"
-                  y="-23"
-                  width="18"
-                  height="18"
+                  x="-12"
+                  y="-28"
+                  width="24"
+                  height="24"
                   color={color}
                   strokeWidth="1.3"
                 />
-                <text y="9" className="sector-name">
+                <text
+                  y="13"
+                  className="sector-name"
+                  textLength={first.length > 8 ? 58 : undefined}
+                  lengthAdjust="spacingAndGlyphs"
+                >
                   {first}
                 </text>
-                <text y="20" className="sector-name">
+                <text
+                  y="29"
+                  className="sector-name"
+                  textLength={last.length > 8 ? 58 : undefined}
+                  lengthAdjust="spacingAndGlyphs"
+                >
                   {last}
                 </text>
-                <text y="37" className="sector-price">
+                <text
+                  y="49"
+                  className="sector-price"
+                  textLength={56}
+                  lengthAdjust="spacingAndGlyphs"
+                >
                   {owner?.mortgages.includes(b.id)
                     ? "MORTGAGED"
                     : b.cost
@@ -163,7 +178,7 @@ export default function OrbitBoard({
                           : b.kind.toUpperCase()}
                 </text>
                 {!!owner?.assets[b.id] && (
-                  <text y="51" fill={owner.color} className="sector-price">
+                  <text y="68" fill={owner.color} className="sector-price">
                     {owner.assets[b.id] === 5
                       ? "HOTEL"
                       : "▪".repeat(owner.assets[b.id])}
@@ -171,13 +186,13 @@ export default function OrbitBoard({
                 )}
               </g>
               {here.map((p, i) => {
-                const t = point(406 + i * 12, angle);
+                const t = point(412 + i * 12, angle);
                 return (
                   <g key={p.id} className="orbit-token">
                     <circle
                       cx={t[0]}
                       cy={t[1]}
-                      r="12"
+                      r="15"
                       fill={p.color}
                       stroke="#e7fff6"
                       strokeWidth="2"
@@ -187,7 +202,7 @@ export default function OrbitBoard({
                       y={t[1] + 3}
                       textAnchor="middle"
                       fill="#06131b"
-                      fontSize="7"
+                      fontSize="10"
                       fontWeight="800"
                     >
                       {p.avatar}
