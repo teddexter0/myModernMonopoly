@@ -1,1013 +1,1249 @@
-'use client';
+"use client";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  ArrowRight,
+  ArrowLeftRight,
+  AudioLines,
+  ChevronRight,
+  CircleHelp,
+  Dices,
+  Expand,
+  Home,
+  Landmark,
+  Pause,
+  Play,
+  Radio,
+  RotateCcw,
+  ShieldCheck,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
+import { BOARD, GROUPS, PLAYER_STYLES } from "@/lib/game-data";
+import {
+  Action,
+  OrbitState,
+  Trade,
+  Trader,
+  buildReason,
+  buildingCost,
+  createGame,
+  inventory,
+  netWorth,
+  orbitReducer,
+  ownerOf,
+  rentFor,
+  rents,
+} from "@/lib/orbit-engine";
+import OrbitBoard from "@/components/game/OrbitBoard";
+import LocationScene from "@/components/game/LocationScene";
 
-import React, { useState } from 'react';
-import { DollarSign, TrendingUp, Building2, Zap, Users, Globe, Rocket, Brain, Shield, Factory, Landmark, Package, ShoppingCart, X } from 'lucide-react';
-
-// TypeScript interfaces
-interface District {
-  id: number;
-  name: string;
-  type?: string;
-  cost?: number;
-  rent?: number[];
-  color: string;
-  group?: string;
-  region?: string;
-  icon: React.FC<any>;
-  amount?: number;
-}
-
-interface Player {
-  id: number;
-  name: string;
-  cash: number;
-  position: number;
-  properties: number[];
-  stocks: Record<string, number>;
-  netWorth: number;
-  inJail: boolean;
-  jailTurns: number;
-  color: string;
-  border: string;
-  doubles: number;
-}
-
-interface Stock {
-  name: string;
-  price: number;
-  volatility: number;
-  icon: React.FC<any>;
-  color: string;
-}
-
-interface StockCartItem {
-  ticker: string;
-  quantity: number;
-  price: number;
-}
-
-// Game data
-const DISTRICTS: District[] = [
-  { id: 0, name: 'HQ START', type: 'special', color: 'emerald', icon: Rocket },
-  { id: 1, name: 'Silicon Valley', cost: 60, rent: [2, 10, 30, 90, 160, 250], color: 'blue', group: 'tech', region: 'NA', icon: Brain },
-  { id: 2, name: 'Investment Card', type: 'card', color: 'purple', icon: TrendingUp },
-  { id: 3, name: 'Austin Tech Hub', cost: 60, rent: [4, 20, 60, 180, 320, 450], color: 'blue', group: 'tech', region: 'NA', icon: Brain },
-  { id: 4, name: 'Corporate Tax', type: 'tax', amount: 200, color: 'red', icon: Landmark },
-  { id: 5, name: 'Hyperloop Station', cost: 200, type: 'transport', color: 'gray', icon: Zap },
-  { id: 6, name: 'Seoul District', cost: 100, rent: [6, 30, 90, 270, 400, 550], color: 'cyan', group: 'asia', region: 'Asia', icon: Factory },
-  { id: 7, name: 'Market Event', type: 'card', color: 'orange', icon: Globe },
-  { id: 8, name: 'Tokyo Tower', cost: 100, rent: [6, 30, 90, 270, 400, 550], color: 'cyan', group: 'asia', region: 'Asia', icon: Factory },
-  { id: 9, name: 'Shanghai Finance', cost: 120, rent: [8, 40, 100, 300, 450, 600], color: 'cyan', group: 'asia', region: 'Asia', icon: Factory },
-  { id: 10, name: 'Detention Center', type: 'jail', color: 'gray', icon: Shield },
-  { id: 11, name: 'London Offices', cost: 140, rent: [10, 50, 150, 450, 625, 750], color: 'pink', group: 'europe', region: 'EU', icon: Building2 },
-  { id: 12, name: 'Energy Corp', cost: 150, type: 'utility', color: 'yellow', icon: Zap },
-  { id: 13, name: 'Berlin Campus', cost: 140, rent: [10, 50, 150, 450, 625, 750], color: 'pink', group: 'europe', region: 'EU', icon: Building2 },
-  { id: 14, name: 'Paris Innovation', cost: 160, rent: [12, 60, 180, 500, 700, 900], color: 'pink', group: 'europe', region: 'EU', icon: Building2 },
-  { id: 15, name: 'Maglev Network', cost: 200, type: 'transport', color: 'gray', icon: Zap },
-  { id: 16, name: 'Miami Blockchain', cost: 180, rent: [14, 70, 200, 550, 750, 950], color: 'orange', group: 'crypto', region: 'NA', icon: Package },
-  { id: 17, name: 'Investment Card', type: 'card', color: 'purple', icon: TrendingUp },
-  { id: 18, name: 'Dubai Crypto', cost: 180, rent: [14, 70, 200, 550, 750, 950], color: 'orange', group: 'crypto', region: 'EM', icon: Package },
-  { id: 19, name: 'Singapore Web3', cost: 200, rent: [16, 80, 220, 600, 800, 1000], color: 'orange', group: 'crypto', region: 'Asia', icon: Package },
-  { id: 20, name: 'Free Market', type: 'special', color: 'green', icon: DollarSign },
-  { id: 21, name: 'Lagos Tech', cost: 220, rent: [18, 90, 250, 700, 875, 1050], color: 'red', group: 'emerging', region: 'EM', icon: Rocket },
-  { id: 22, name: 'Market Event', type: 'card', color: 'orange', icon: Globe },
-  { id: 23, name: 'Nairobi Innovation', cost: 220, rent: [18, 90, 250, 700, 875, 1050], color: 'red', group: 'emerging', region: 'EM', icon: Rocket },
-  { id: 24, name: 'Mumbai Finance', cost: 240, rent: [20, 100, 300, 750, 925, 1100], color: 'red', group: 'emerging', region: 'EM', icon: Rocket },
-  { id: 25, name: 'Space Elevator', cost: 200, type: 'transport', color: 'gray', icon: Rocket },
-  { id: 26, name: 'Buenos Aires', cost: 260, rent: [22, 110, 330, 800, 975, 1150], color: 'yellow', group: 'latam', region: 'EM', icon: Factory },
-  { id: 27, name: 'São Paulo', cost: 260, rent: [22, 110, 330, 800, 975, 1150], color: 'yellow', group: 'latam', region: 'EM', icon: Factory },
-  { id: 28, name: 'Quantum Corp', cost: 150, type: 'utility', color: 'purple', icon: Brain },
-  { id: 29, name: 'Mexico City', cost: 280, rent: [24, 120, 360, 850, 1025, 1200], color: 'yellow', group: 'latam', region: 'EM', icon: Factory },
-  { id: 30, name: 'Go To Detention', type: 'gotojail', color: 'red', icon: Shield },
-  { id: 31, name: 'New York Prime', cost: 300, rent: [26, 130, 390, 900, 1100, 1275], color: 'green', group: 'premium', region: 'NA', icon: Building2 },
-  { id: 32, name: 'LA Complex', cost: 300, rent: [26, 130, 390, 900, 1100, 1275], color: 'green', group: 'premium', region: 'NA', icon: Building2 },
-  { id: 33, name: 'Investment Card', type: 'card', color: 'purple', icon: TrendingUp },
-  { id: 34, name: 'Chicago Tower', cost: 320, rent: [28, 150, 450, 1000, 1200, 1400], color: 'green', group: 'premium', region: 'NA', icon: Building2 },
-  { id: 35, name: 'Orbital Station', cost: 200, type: 'transport', color: 'gray', icon: Rocket },
-  { id: 36, name: 'Market Event', type: 'card', color: 'orange', icon: Globe },
-  { id: 37, name: 'Mars Colony', cost: 350, rent: [35, 175, 500, 1100, 1300, 1500], color: 'indigo', group: 'space', region: 'Space', icon: Rocket },
-  { id: 38, name: 'Wealth Tax', type: 'tax', amount: 100, color: 'red', icon: Landmark },
-  { id: 39, name: 'Moon Base', cost: 400, rent: [50, 200, 600, 1400, 1700, 2000], color: 'indigo', group: 'space', region: 'Space', icon: Rocket },
+const SAVE = "capital-wars-orbit-v2";
+const money = (n: number) => `◈ ${Math.round(n).toLocaleString("en")}`;
+const LEVELS = [
+  "Land only",
+  "1 house",
+  "2 houses",
+  "3 houses",
+  "4 houses",
+  "Hotel",
 ];
-
-const CHANCE_CARDS = [
-  { text: "Tech boom! Collect $200", amount: 200 },
-  { text: "Market correction. Pay $50", amount: -50 },
-  { text: "Dividend payout! Collect $150", amount: 150 },
-  { text: "Regulatory fine. Pay $100", amount: -100 },
-  { text: "Investment returns! Collect $100", amount: 100 },
-  { text: "Go directly to Detention. Do not pass HQ.", special: "jail" },
-  { text: "Advance to HQ. Collect $200", special: "go" },
-  { text: "Universal income! Collect $50", amount: 50 },
-];
-
-const STOCKS: Record<string, Stock> = {
-  TECH: { name: 'TechCorp AI', price: 100, volatility: 0.3, icon: Brain, color: 'blue' },
-  ENERGY: { name: 'GreenPower', price: 150, volatility: 0.1, icon: Zap, color: 'green' },
-  CRYPTO: { name: 'BlockChain Inc', price: 50, volatility: 0.7, icon: Package, color: 'orange' },
-  SPACE: { name: 'AstroX', price: 200, volatility: 0.5, icon: Rocket, color: 'purple' },
-};
-
-const PLAYER_COLORS = [
-  { name: 'Cyan Ventures', color: 'bg-cyan-500', border: 'border-cyan-400' },
-  { name: 'Magenta Corp', color: 'bg-pink-500', border: 'border-pink-400' },
-  { name: 'Gold Empire', color: 'bg-yellow-500', border: 'border-yellow-400' },
-  { name: 'Emerald Group', color: 'bg-emerald-500', border: 'border-emerald-400' },
-];
-
 export default function CapitalWars() {
-  const [gameStarted, setGameStarted] = useState(false);
-  const [playerCount, setPlayerCount] = useState(2);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
-  const [dice, setDice] = useState<[number, number]>([1, 1]);
-  const [gameLog, setGameLog] = useState<string[]>(['Welcome to Capital Wars 2050!']);
-  const [roundNumber, setRoundNumber] = useState(0);
-  const [stockPrices, setStockPrices] = useState(STOCKS);
-  const [showDistrictModal, setShowDistrictModal] = useState<District | null>(null);
-  const [stockCart, setStockCart] = useState<StockCartItem[]>([]);
-  const [showStockCart, setShowStockCart] = useState(false);
-  const [turnPhase, setTurnPhase] = useState<'roll' | 'action' | 'end'>('roll');
-  const [rolledThisTurn, setRolledThisTurn] = useState(false);
-  // FIX: track when doubles were rolled so player can roll again
-  const [canRollAgain, setCanRollAgain] = useState(false);
-
-  const currentPlayer = players[currentPlayerIndex];
-
-  const addLog = (message: string) => {
-    setGameLog(prev => [...prev.slice(-9), message]);
-  };
-
-  const startGame = () => {
-    const newPlayers: Player[] = Array.from({ length: playerCount }, (_, i) => ({
-      id: i + 1,
-      name: PLAYER_COLORS[i].name,
-      cash: 1500,
-      position: 0,
-      properties: [],
-      stocks: {},
-      netWorth: 1500,
-      inJail: false,
-      jailTurns: 0,
-      doubles: 0,
-      color: PLAYER_COLORS[i].color,
-      border: PLAYER_COLORS[i].border,
-    }));
-    setPlayers(newPlayers);
-    setGameStarted(true);
-    addLog(`Game started! ${newPlayers[0].name} goes first.`);
-  };
-
-  const simulateDiceRoll = (): Promise<[number, number]> => {
-    return new Promise((resolve) => {
-      let rolls = 0;
-      const maxRolls = 10;
-      const interval = setInterval(() => {
-        const d1 = Math.floor(Math.random() * 6) + 1;
-        const d2 = Math.floor(Math.random() * 6) + 1;
-        setDice([d1, d2]);
-        rolls++;
-        if (rolls >= maxRolls) {
-          clearInterval(interval);
-          resolve([d1, d2]);
-        }
-      }, 100);
-    });
-  };
-
-  const rollDice = async () => {
-    // FIX: allow rolling when canRollAgain is true (after doubles), even if rolledThisTurn
-    if (!currentPlayer || (rolledThisTurn && !canRollAgain)) return;
-
-    // Consume the roll-again opportunity before rolling
-    setCanRollAgain(false);
-
-    // Handle jail roll
-    if (currentPlayer.inJail) {
-      const [d1, d2] = await simulateDiceRoll();
-      // FIX: deep-copy each player object to avoid mutating existing state references
-      const updatedPlayers = players.map(p => ({ ...p }));
-
-      if (d1 === d2) {
-        addLog(`${currentPlayer.name} rolled doubles (${d1}+${d2})! Released from detention!`);
-        updatedPlayers[currentPlayerIndex].inJail = false;
-        updatedPlayers[currentPlayerIndex].jailTurns = 0;
-        updatedPlayers[currentPlayerIndex].doubles = 0;
-        setPlayers(updatedPlayers);
-        // FIX: pass updatedPlayers and actual dice values through to avoid stale closures
-        movePlayer(d1 + d2, updatedPlayers, [d1, d2]);
-      } else {
-        updatedPlayers[currentPlayerIndex].jailTurns++;
-        if (updatedPlayers[currentPlayerIndex].jailTurns >= 3) {
-          // On the 3rd failed attempt, must pay $50 and move
-          addLog(`${currentPlayer.name} paid $50 fine to leave detention!`);
-          updatedPlayers[currentPlayerIndex].cash = Math.max(0, updatedPlayers[currentPlayerIndex].cash - 50);
-          updatedPlayers[currentPlayerIndex].inJail = false;
-          updatedPlayers[currentPlayerIndex].jailTurns = 0;
-          setPlayers(updatedPlayers);
-          movePlayer(d1 + d2, updatedPlayers, [d1, d2]);
-        } else {
-          const turnsLeft = 3 - updatedPlayers[currentPlayerIndex].jailTurns;
-          addLog(`${currentPlayer.name} rolled ${d1}+${d2}. No doubles — ${turnsLeft} turn(s) left in detention.`);
-          setPlayers(updatedPlayers);
-          setTurnPhase('end');
-        }
-      }
-      setRolledThisTurn(true);
-      return;
-    }
-
-    // Normal roll
-    const [d1, d2] = await simulateDiceRoll();
-    const isDoubles = d1 === d2;
-
-    addLog(`${currentPlayer.name} rolled ${d1} + ${d2} = ${d1 + d2}${isDoubles ? ' (DOUBLES!)' : ''}`);
-
-    // FIX: deep-copy players to avoid mutating existing state references
-    const updatedPlayers = players.map(p => ({ ...p }));
-
-    if (isDoubles) {
-      updatedPlayers[currentPlayerIndex].doubles++;
-
-      if (updatedPlayers[currentPlayerIndex].doubles >= 3) {
-        // 3 doubles in a row = go to jail, turn ends
-        addLog(`${currentPlayer.name} rolled 3 doubles in a row! Sent to detention!`);
-        updatedPlayers[currentPlayerIndex].position = 10;
-        updatedPlayers[currentPlayerIndex].inJail = true;
-        updatedPlayers[currentPlayerIndex].doubles = 0;
-        setPlayers(updatedPlayers);
-        setRolledThisTurn(true);
-        setCanRollAgain(false);
-        setTurnPhase('end');
-        return;
-      }
-
-      // FIX: move player on doubles, then grant an extra roll
-      setPlayers(updatedPlayers);
-      movePlayer(d1 + d2, updatedPlayers, [d1, d2]);
-      setRolledThisTurn(true);
-      setCanRollAgain(true);  // FIX: was never set before — doubles couldn't re-roll
-      setTurnPhase('roll');   // stay in roll phase so they can roll again
-    } else {
-      updatedPlayers[currentPlayerIndex].doubles = 0;
-      setPlayers(updatedPlayers);
-      movePlayer(d1 + d2, updatedPlayers, [d1, d2]);
-      setRolledThisTurn(true);
-      setCanRollAgain(false);
-      setTurnPhase('action');
-    }
-  };
-
-  // FIX: takes currentPlayers & diceValues so we never read stale closure state
-  const movePlayer = (steps: number, currentPlayers: Player[], diceValues: [number, number]) => {
-    const player = currentPlayers[currentPlayerIndex];
-    const newPosition = (player.position + steps) % 40;
-    // FIX: reliable passedHQ — checks raw sum before modulo, not newPos < oldPos
-    const passedHQ = (player.position + steps) >= 40;
-
-    const updatedPlayers = currentPlayers.map(p => ({ ...p }));
-    updatedPlayers[currentPlayerIndex].position = newPosition;
-
-    if (passedHQ) {
-      updatedPlayers[currentPlayerIndex].cash += 200;
-      updatedPlayers[currentPlayerIndex].netWorth += 200;
-      addLog(`${player.name} passed HQ! Collected $200`);
-    }
-
-    setPlayers(updatedPlayers);
-
-    const landedDistrict = DISTRICTS[newPosition];
-    // FIX: pass updatedPlayers and diceValues forward — no more stale closure reads
-    handleLanding(landedDistrict, updatedPlayers[currentPlayerIndex], updatedPlayers, diceValues);
-  };
-
-  // FIX: takes currentPlayers and diceValues — all property lookups use fresh data
-  const handleLanding = (
-    district: District,
-    player: Player,
-    currentPlayers: Player[],
-    diceValues: [number, number]
-  ) => {
-    if (district.type === 'gotojail') {
-      addLog(`${player.name} is sent to detention!`);
-      const updatedPlayers = currentPlayers.map(p => ({ ...p }));
-      updatedPlayers[currentPlayerIndex].position = 10;
-      updatedPlayers[currentPlayerIndex].inJail = true;
-      updatedPlayers[currentPlayerIndex].doubles = 0;
-      setPlayers(updatedPlayers);
-      setCanRollAgain(false);
-      setTurnPhase('end');
-    } else if (district.type === 'jail') {
-      addLog(`${player.name} is just visiting detention.`);
-    } else if (district.type === 'special' && district.name === 'Free Market') {
-      addLog(`${player.name} enjoys free market benefits!`);
-    } else if (district.type === 'tax' && district.amount) {
-      addLog(`${player.name} pays $${district.amount} for ${district.name}`);
-      updatePlayerCash(player.id, -district.amount);
-    } else if (district.type === 'card') {
-      // FIX: pass currentPlayers so drawChanceCard doesn't read stale state
-      drawChanceCard(player, currentPlayers);
-    } else if (district.type === 'utility') {
-      // FIX: pass currentPlayers and diceValues
-      handleUtilityLanding(district, player, currentPlayers, diceValues);
-    } else if (district.type === 'transport') {
-      // FIX: pass currentPlayers
-      handleTransportLanding(district, player, currentPlayers);
-    } else if (district.cost && !district.type) {
-      // FIX: use currentPlayers.find instead of stale players.find
-      const owner = currentPlayers.find(p => p.properties.includes(district.id));
-      if (!owner) {
-        setShowDistrictModal(district);
-      } else if (owner.id !== player.id) {
-        const rent = calculateRent(district, owner);
-        addLog(`${player.name} pays $${rent} rent to ${owner.name}`);
-        updatePlayerCash(player.id, -rent);
-        updatePlayerCash(owner.id, rent);
-      } else {
-        addLog(`${player.name} landed on their own property.`);
-      }
-    }
-  };
-
-  // FIX: takes currentPlayers; also ends turn properly when jail card drawn
-  const drawChanceCard = (player: Player, currentPlayers: Player[]) => {
-    const card = CHANCE_CARDS[Math.floor(Math.random() * CHANCE_CARDS.length)];
-    addLog(`${player.name} drew: "${card.text}"`);
-
-    if (card.special === 'jail') {
-      const updatedPlayers = currentPlayers.map(p => ({ ...p }));
-      updatedPlayers[currentPlayerIndex].position = 10;
-      updatedPlayers[currentPlayerIndex].inJail = true;
-      updatedPlayers[currentPlayerIndex].doubles = 0;
-      setPlayers(updatedPlayers);
-      setCanRollAgain(false);
-      setTurnPhase('end'); // FIX: jail card now correctly ends the current turn
-    } else if (card.special === 'go') {
-      const updatedPlayers = currentPlayers.map(p => ({ ...p }));
-      const oldPos = updatedPlayers[currentPlayerIndex].position;
-      updatedPlayers[currentPlayerIndex].position = 0;
-      // Collect $200 when advancing to HQ (standard Monopoly rule)
-      if (oldPos !== 0) {
-        updatedPlayers[currentPlayerIndex].cash += 200;
-        updatedPlayers[currentPlayerIndex].netWorth += 200;
-        addLog(`${player.name} advanced to HQ! Collected $200`);
-      }
-      setPlayers(updatedPlayers);
-    } else if (card.amount) {
-      updatePlayerCash(player.id, card.amount);
-    }
-  };
-
-  // FIX: uses diceValues param instead of stale dice state; uses currentPlayers for ownership
-  const handleUtilityLanding = (
-    district: District,
-    player: Player,
-    currentPlayers: Player[],
-    diceValues: [number, number]
-  ) => {
-    const owner = currentPlayers.find(p => p.properties.includes(district.id));
-    if (!owner) {
-      setShowDistrictModal(district);
-    } else if (owner.id !== player.id) {
-      const utilitiesOwned = owner.properties.filter(id => DISTRICTS[id].type === 'utility').length;
-      const multiplier = utilitiesOwned === 2 ? 10 : 4;
-      // FIX: use passed diceValues, not the stale dice state variable
-      const rent = (diceValues[0] + diceValues[1]) * multiplier;
-      addLog(`${player.name} pays $${rent} (${diceValues[0]}+${diceValues[1]} × ${multiplier}) to ${owner.name}`);
-      updatePlayerCash(player.id, -rent);
-      updatePlayerCash(owner.id, rent);
-    }
-  };
-
-  // FIX: uses currentPlayers for ownership lookup
-  const handleTransportLanding = (district: District, player: Player, currentPlayers: Player[]) => {
-    const owner = currentPlayers.find(p => p.properties.includes(district.id));
-    if (!owner) {
-      setShowDistrictModal(district);
-    } else if (owner.id !== player.id) {
-      const transportsOwned = owner.properties.filter(id => DISTRICTS[id].type === 'transport').length;
-      const rent = 25 * Math.pow(2, transportsOwned - 1);
-      addLog(`${player.name} pays $${rent} transport fee to ${owner.name}`);
-      updatePlayerCash(player.id, -rent);
-      updatePlayerCash(owner.id, rent);
-    }
-  };
-
-  const calculateRent = (district: District, owner: Player) => {
-    if (!district.rent || !district.group) return district.rent?.[0] || 0;
-    const groupProperties = DISTRICTS.filter(d => d.group === district.group && d.cost);
-    const ownsAll = groupProperties.every(d => owner.properties.includes(d.id));
-    return ownsAll ? district.rent[0] * 2 : district.rent[0];
-  };
-
-  const buyDistrict = () => {
-    if (!showDistrictModal || !currentPlayer) return;
-    const district = showDistrictModal;
-    if (district.cost && currentPlayer.cash >= district.cost) {
-      const updatedPlayers = players.map(p => ({ ...p }));
-      updatedPlayers[currentPlayerIndex].cash -= district.cost;
-      updatedPlayers[currentPlayerIndex].properties = [
-        ...updatedPlayers[currentPlayerIndex].properties,
-        district.id,
-      ];
-      // Net worth: cash decreases by cost, but property asset added at cost — net neutral
-      // We still track it so UI stays consistent
-      setPlayers(updatedPlayers);
-      addLog(`${currentPlayer.name} acquired ${district.name} for $${district.cost}`);
-      setShowDistrictModal(null);
-    }
-  };
-
-  // Uses functional update so it always gets the latest state (safe for chained calls)
-  const updatePlayerCash = (playerId: number, amount: number) => {
-    setPlayers(prev => prev.map(p =>
-      p.id === playerId
-        ? { ...p, cash: Math.max(0, p.cash + amount), netWorth: Math.max(0, p.netWorth + amount) }
-        : p
-    ));
-  };
-
-  const updateMarket = (diceSum: number) => {
-    setStockPrices(prev => {
-      const updated: Record<string, Stock> = {};
-      Object.keys(prev).forEach(ticker => {
-        const stock = prev[ticker];
-        const change = (diceSum - 7) * stock.volatility * 0.1;
-        updated[ticker] = {
-          ...stock,
-          price: Math.max(10, Math.floor(stock.price * (1 + change))),
-        };
-      });
-      return updated;
-    });
-    addLog('Market prices updated!');
-  };
-
-  const addToCart = (ticker: string) => {
-    const currentPrice = stockPrices[ticker].price;
-    const existing = stockCart.find(item => item.ticker === ticker);
-    if (existing) {
-      setStockCart(prev =>
-        prev.map(item =>
-          item.ticker === ticker ? { ...item, quantity: item.quantity + 1 } : item
+  const [game, setGame] = useState<OrbitState | null>(null),
+    [saved, setSaved] = useState<OrbitState | null>(null),
+    [count, setCount] = useState(2),
+    [mode, setMode] = useState<"classic" | "sprint">("classic"),
+    [names, setNames] = useState<string[]>([]);
+  const [selected, setSelected] = useState<number | null>(null),
+    [rules, setRules] = useState(false),
+    [trading, setTrading] = useState(false),
+    [rolling, setRolling] = useState(false),
+    [preview, setPreview] = useState(0),
+    [motion, setMotion] = useState(true),
+    [paused, setPaused] = useState(false),
+    [restart, setRestart] = useState(false),
+    [saveError, setSaveError] = useState(false);
+  const [displayDice, setDisplayDice] = useState<[number, number]>([1, 1]);
+  const rollingRef = useRef(false);
+  const [travel, setTravel] = useState<number | null>(null);
+  const dispatch = (a: Action) => setGame((s) => (s ? orbitReducer(s, a) : s));
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SAVE);
+      if (raw) {
+        const s = JSON.parse(raw);
+        if (
+          s.version === 2 &&
+          s.players?.length >= 2 &&
+          s.players.every(
+            (p: Trader) => p.position >= 0 && p.position < BOARD.length,
+          ) &&
+          s.phase !== "over"
         )
-      );
-    } else {
-      setStockCart(prev => [...prev, { ticker, quantity: 1, price: currentPrice }]);
+          setSaved(s);
+      }
+    } catch {
+      setSaveError(true);
     }
-  };
-
-  const removeFromCart = (ticker: string) => {
-    setStockCart(prev => prev.filter(item => item.ticker !== ticker));
-  };
-
-  const updateCartQuantity = (ticker: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(ticker);
-    } else {
-      setStockCart(prev =>
-        prev.map(item => (item.ticker === ticker ? { ...item, quantity } : item))
-      );
+  }, []);
+  useEffect(() => {
+    if (game) {
+      try {
+        localStorage.setItem(SAVE, JSON.stringify(game));
+        setSaveError(false);
+      } catch {
+        setSaveError(true);
+      }
     }
+  }, [game]);
+  useEffect(() => {
+    if (
+      !game ||
+      paused ||
+      rolling ||
+      game.phase === "over" ||
+      rules ||
+      selected !== null ||
+      trading
+    )
+      return;
+    const t = window.setInterval(() => dispatch({ type: "TICK" }), 1000);
+    return () => clearInterval(t);
+  }, [!!game, paused, rolling, game?.phase, rules, selected, trading]);
+  const start = () => {
+    setGame(createGame(count, mode, names));
+    setSelected(null);
+    setPaused(false);
   };
-
-  const checkoutCart = () => {
-    if (!currentPlayer || stockCart.length === 0) return;
-    // Use current live market prices at checkout time
-    const total = stockCart.reduce(
-      (sum, item) => sum + (stockPrices[item.ticker]?.price ?? item.price) * item.quantity,
-      0
-    );
-    if (currentPlayer.cash >= total) {
-      const updatedPlayers = players.map(p => ({ ...p }));
-      updatedPlayers[currentPlayerIndex].cash -= total;
-      stockCart.forEach(item => {
-        const currentQty = updatedPlayers[currentPlayerIndex].stocks[item.ticker] || 0;
-        updatedPlayers[currentPlayerIndex].stocks = {
-          ...updatedPlayers[currentPlayerIndex].stocks,
-          [item.ticker]: currentQty + item.quantity,
-        };
-      });
-      setPlayers(updatedPlayers);
-      addLog(`${currentPlayer.name} bought ${stockCart.length} stock type(s) for $${total}`);
-      setStockCart([]);
-      setShowStockCart(false);
-    } else {
-      addLog(`${currentPlayer.name} doesn't have enough cash!`);
+  const roll = async () => {
+    if (!game || rollingRef.current || paused) return;
+    rollingRef.current = true;
+    setRolling(true);
+    for (let i = 0; i < 8; i++) {
+      setDisplayDice([
+        1 + Math.floor(Math.random() * 6),
+        1 + Math.floor(Math.random() * 6),
+      ]);
+      await new Promise((r) => setTimeout(r, 65));
     }
-  };
-
-  // FIX: market update moved here — triggers every 3 full rounds, not on every dice move
-  const endTurn = () => {
-    const nextIndex = (currentPlayerIndex + 1) % players.length;
-    const completingRound = nextIndex === 0;
-    const newRound = completingRound ? roundNumber + 1 : roundNumber;
-
-    if (completingRound && newRound > 0 && newRound % 3 === 0) {
-      updateMarket(dice[0] + dice[1]);
+    const d: [number, number] = [
+      1 + Math.floor(Math.random() * 6),
+      1 + Math.floor(Math.random() * 6),
+    ];
+    setDisplayDice(d);
+    const p = game.players[game.current];
+    if (
+      !p.frozen &&
+      !(game.doubles === 2 && d[0] === d[1]) &&
+      (p.jail < 0 || d[0] === d[1] || p.jail === 2)
+    ) {
+      for (let step = 1; step <= d[0] + d[1]; step++) {
+        setTravel((p.position + step) % BOARD.length);
+        await new Promise((r) => setTimeout(r, 95));
+      }
     }
-
-    setCurrentPlayerIndex(nextIndex);
-    setRoundNumber(newRound);
-    setShowDistrictModal(null);
-    setTurnPhase('roll');
-    setRolledThisTurn(false);
-    setCanRollAgain(false); // FIX: always clear doubles state between turns
-    setStockCart([]);
-    setShowStockCart(false);
-    addLog(`--- ${players[nextIndex]?.name}'s turn ---`);
+    setTravel(null);
+    dispatch({ type: "ROLL", dice: d });
+    setRolling(false);
+    rollingRef.current = false;
   };
-
-  const getDistrictColor = (color: string) => {
-    const colors: Record<string, string> = {
-      blue: 'bg-blue-600',
-      cyan: 'bg-cyan-600',
-      pink: 'bg-pink-600',
-      orange: 'bg-orange-600',
-      red: 'bg-red-600',
-      yellow: 'bg-yellow-500',
-      green: 'bg-green-600',
-      indigo: 'bg-indigo-700',
-      gray: 'bg-gray-600',
-      purple: 'bg-purple-600',
-      emerald: 'bg-emerald-500',
-    };
-    return colors[color] || 'bg-gray-400';
+  const scene =
+      travel ?? (game ? game.players[game.current].position : preview),
+    player = game?.players[game.current];
+  const debtor = game?.debt[0] ? game.players[game.debt[0].payer] : null,
+    manager = debtor || player;
+  const space = selected !== null ? BOARD[selected] : null,
+    owner = game && space ? ownerOf(game, space.id) : undefined;
+  const unresolved =
+    (game?.pending !== null && game?.pending !== undefined) ||
+    !!game?.auction ||
+    !!game?.card ||
+    !!game?.debt.length ||
+    !!game?.trade;
+  const select = (id: number) => {
+    if (game) setSelected(id);
+    else setPreview(id);
   };
-
-  // Use live market prices for cart total
-  const cartTotal = stockCart.reduce(
-    (sum, item) => sum + (stockPrices[item.ticker]?.price ?? item.price) * item.quantity,
-    0
-  );
-
-  if (!gameStarted) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white flex items-center justify-center p-4">
-        <div className="max-w-2xl w-full bg-black/40 backdrop-blur-xl rounded-2xl p-8 border border-white/10">
-          <div className="text-center mb-8">
-            <h1
-              className="text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400"
-              style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
-            >
-              CAPITAL WARS
-            </h1>
-            <p className="text-3xl text-gray-200 mb-3 font-semibold">2050</p>
-            <p className="text-gray-300 text-lg">Build your corporate empire in the age of AI & space exploration</p>
+  return (
+    <main className={`capital-app ${!motion ? "motion-off" : ""}`}>
+      <LocationScene space={scene} />
+      <div className="scene-vignette" />
+      <header className="topbar">
+        <a href="/" className="brand" aria-label="Capital Wars home">
+          <span className="brand-symbol">
+            C<span>W</span>
+          </span>
+          <div>
+            CAPITAL WARS<small>THE ORBITAL ECONOMY</small>
           </div>
-
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-bold mb-3 text-gray-200 uppercase tracking-wide">
-                Select Corporations
-              </label>
-              <div className="grid grid-cols-3 gap-3">
-                {[2, 3, 4].map(num => (
+        </a>
+        <div className="top-status">
+          <i /> {game ? "EXCHANGE OPEN" : "ACCELERATOR ONLINE"}{" "}
+          <span>2050</span>
+        </div>
+        <nav>
+          <button
+            title={
+              motion ? "Reduce background motion" : "Enable background motion"
+            }
+            aria-label={
+              motion ? "Reduce background motion" : "Enable background motion"
+            }
+            onClick={() => setMotion(!motion)}
+          >
+            <AudioLines size={17} />
+          </button>
+          <button onClick={() => setRules(true)}>
+            <CircleHelp size={16} />
+            <span>How to play</span>
+          </button>
+          {game && (
+            <button onClick={() => setPaused(true)}>
+              <Pause size={16} />
+              <span>Pause</span>
+            </button>
+          )}
+        </nav>
+      </header>
+      {!game ? (
+        <>
+          <div className="lobby-layout">
+            <section className="lobby-copy">
+              <div className="edition">
+                <span>01 / ORBITAL EDITION</span>
+                <i /> A WORLD IN MOTION
+              </div>
+              <h1>
+                Wealth has
+                <br />a new <em>orbit.</em>
+              </h1>
+              <p className="lede">
+                The world is your portfolio. Buy the skyline. Own the networks.
+                Build an empire that survives the next shock.
+              </p>
+              <div className="feature-strip">
+                <span>
+                  <Landmark size={15} /> Own & develop
+                </span>
+                <span>
+                  <ArrowLeftRight size={15} /> Trade & outbid
+                </span>
+                <span>
+                  <Zap size={15} /> Survive the pulse
+                </span>
+              </div>
+              <section className="setup-panel">
+                <div className="panel-label">
+                  <span>CONFIGURE YOUR SESSION</span>
+                  <span>LOCAL MULTIPLAYER</span>
+                </div>
+                <div className="setup-row">
+                  <div>
+                    <label>PLAYERS</label>
+                    <div className="segmented">
+                      {[2, 3, 4].map((n) => (
+                        <button
+                          key={n}
+                          aria-pressed={count === n}
+                          onClick={() => setCount(n)}
+                          className={count === n ? "active" : ""}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mode-picker">
+                    <label>GAME MODE</label>
+                    <div className="segmented">
+                      <button
+                        className={mode === "classic" ? "active" : ""}
+                        onClick={() => setMode("classic")}
+                      >
+                        Classic
+                      </button>
+                      <button
+                        className={mode === "sprint" ? "active" : ""}
+                        onClick={() => setMode("sprint")}
+                      >
+                        60-min Sprint
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="name-inputs">
+                  {PLAYER_STYLES.slice(0, count).map((p, i) => (
+                    <label key={i}>
+                      <i style={{ background: p.color }} />
+                      <input
+                        aria-label={`Player ${i + 1} name`}
+                        value={names[i] || ""}
+                        maxLength={24}
+                        placeholder={p.name}
+                        onChange={(e) =>
+                          setNames((a) => {
+                            const n = [...a];
+                            n[i] = e.target.value;
+                            return n;
+                          })
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+                <p className="mode-note">
+                  {mode === "classic"
+                    ? "Last solvent player wins. No round limit."
+                    : "60 minutes of active play. Highest net worth wins."}{" "}
+                  Pass the device to take turns.
+                </p>
+                <button className="primary" onClick={start}>
+                  ENTER THE ACCELERATOR <ArrowRight size={19} />
+                </button>
+                {saved && (
                   <button
-                    key={num}
-                    onClick={() => setPlayerCount(num)}
-                    className={`p-5 rounded-xl border-2 transition-all font-semibold ${
-                      playerCount === num
-                        ? 'bg-purple-600 border-purple-400 scale-105 shadow-lg shadow-purple-500/50'
-                        : 'bg-white/5 border-white/10 hover:border-white/30 hover:bg-white/10'
-                    }`}
+                    className="resume"
+                    onClick={() => {
+                      setGame(saved);
+                      setDisplayDice(saved.dice);
+                    }}
                   >
-                    <Users className="w-8 h-8 mx-auto mb-2" />
-                    <div className="font-bold text-lg">{num} Players</div>
+                    <Play size={14} /> Resume saved session{" "}
+                    <span>Turn {saved.turn + 1}</span>
                   </button>
+                )}
+              </section>
+              <div className="lobby-footer">
+                <ShieldCheck size={14} /> Automatic rent, auctions &
+                settlements. Your session saves here.
+              </div>
+            </section>
+            <section className="lobby-board">
+              <div className="board-heading">
+                <span>THE WORLD EXCHANGE</span>
+                <span>
+                  LIVE BOARD PREVIEW <Radio size={13} />
+                </span>
+              </div>
+              <OrbitBoard state={null} selected={preview} onSelect={select}>
+                <span className="core-kicker">DESTINATION SPOTLIGHT</span>
+                <span className="core-coordinates">
+                  {String(preview).padStart(2, "0")} / 32
+                </span>
+                <h2>{BOARD[preview].name}</h2>
+                <div className="core-divider" />
+                <p>
+                  {BOARD[preview].region || "Global exchange"}
+                  <br />
+                  {BOARD[preview].cost
+                    ? `${money(BOARD[preview].cost!)} acquisition`
+                    : "Every orbit starts somewhere."}
+                </p>
+                <span className="core-hint">SELECT A SECTOR TO EXPLORE</span>
+              </OrbitBoard>
+              <div className="board-caption">
+                <span>32 DESTINATIONS / 6 COLOUR SETS</span>
+                <span>BUY. BUILD. BEND THE ECONOMY.</span>
+              </div>
+            </section>
+          </div>
+          <footer className="bottom-bar">
+            <span>CAPITAL WARS / AN ORIGINAL PROPERTY STRATEGY GAME</span>
+            <button onClick={() => setRules(true)}>
+              THE RULES OF THIS WORLD <ChevronRight size={12} />
+            </button>
+          </footer>
+        </>
+      ) : (
+        <>
+          <div className="session-bar">
+            <span>
+              <i style={{ background: player!.color }} />
+              {player!.name}&apos;s turn
+            </span>
+            <span>
+              TURN {game.turn + 1} <b>/</b>{" "}
+              {game.mode === "classic"
+                ? "CLASSIC · LAST PLAYER STANDING"
+                : `${Math.floor(game.remaining / 60)
+                    .toString()
+                    .padStart(
+                      2,
+                      "0",
+                    )}:${(game.remaining % 60).toString().padStart(2, "0")} · SPRINT`}
+            </span>
+            <span className="autosave">
+              {saveError ? "SAVE UNAVAILABLE" : "SAVED ON THIS DEVICE"}{" "}
+              <ShieldCheck size={12} />
+            </span>
+          </div>
+          <div className="play-layout">
+            <section className="exchange-floor">
+              <div className="board-heading">
+                <span>
+                  <Radio size={12} /> CAPITAL ACCELERATOR
+                </span>
+                <span>NOW AT / {BOARD[scene].region || "GLOBAL"}</span>
+              </div>
+              <OrbitBoard
+                state={
+                  travel === null
+                    ? game
+                    : {
+                        ...game,
+                        players: game.players.map((p) =>
+                          p.id === game.current
+                            ? { ...p, position: travel }
+                            : p,
+                        ),
+                      }
+                }
+                selected={selected ?? undefined}
+                onSelect={select}
+              >
+                <span className="core-kicker">CURRENT DESTINATION</span>
+                <h2>{BOARD[scene].name}</h2>
+                <p className="destination-kind">
+                  {BOARD[scene].group
+                    ? GROUPS[BOARD[scene].group!].label
+                    : BOARD[scene].kind === "corner"
+                      ? "GLOBAL EXCHANGE"
+                      : BOARD[scene].kind.toUpperCase()}
+                </p>
+                <div className={`dice-pair ${rolling ? "rolling" : ""}`}>
+                  {(rolling ? displayDice : game.dice).map((n, i) => (
+                    <div
+                      key={i}
+                      aria-label={`Die ${i + 1}: ${n}`}
+                      className={`die die-${n}`}
+                    >
+                      {Array.from({ length: 9 }, (_, j) => (
+                        <i
+                          key={j}
+                          className={
+                            [
+                              [],
+                              [4],
+                              [0, 8],
+                              [0, 4, 8],
+                              [0, 2, 6, 8],
+                              [0, 2, 4, 6, 8],
+                              [0, 2, 3, 5, 6, 8],
+                            ][n].includes(j)
+                              ? "pip"
+                              : ""
+                          }
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                <span className="turn-name" style={{ color: player!.color }}>
+                  {player!.name}
+                </span>
+                <p className="turn-instruction">
+                  {unresolved
+                    ? "Resolve the action in your exchange panel."
+                    : player!.jail >= 0
+                      ? "Under audit. Roll doubles or pay 50."
+                      : game.phase === "roll"
+                        ? "Your next empire is a roll away."
+                        : game.doubles
+                          ? "Doubles! Continue to roll again."
+                          : "Manage your portfolio or pass the dice."}
+                </p>
+                <div className="core-actions">
+                  <button
+                    className="primary"
+                    onClick={roll}
+                    disabled={
+                      rolling || unresolved || game.phase !== "roll" || paused
+                    }
+                  >
+                    <Dices size={17} />
+                    {rolling
+                      ? "ACCELERATING"
+                      : player!.frozen
+                        ? "SERVE TURN"
+                        : "ROLL DICE"}
+                  </button>
+                  <button
+                    onClick={() => dispatch({ type: "END" })}
+                    disabled={rolling || unresolved || game.phase !== "end"}
+                  >
+                    {game.doubles ? "ROLL AGAIN" : "END TURN"}
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+                {player!.jail >= 0 && (
+                  <button
+                    className="bail-button"
+                    disabled={
+                      unresolved || player!.cash < 50 || game.phase !== "roll"
+                    }
+                    onClick={() => dispatch({ type: "BAIL" })}
+                  >
+                    Pay 50 to leave audit
+                  </button>
+                )}
+              </OrbitBoard>
+              <div className="group-legend">
+                {Object.values(GROUPS).map((g) => (
+                  <span key={g.label}>
+                    <i style={{ background: g.color }} />
+                    {g.label}
+                  </span>
                 ))}
               </div>
-            </div>
-
-            <button
-              onClick={startGame}
-              className="w-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 hover:from-cyan-600 hover:via-purple-600 hover:to-pink-600 py-5 rounded-xl font-bold text-xl transition-all transform hover:scale-105 shadow-lg"
-            >
-              🚀 START GAME
-            </button>
-
-            <div className="bg-white/5 rounded-xl p-5 text-sm text-gray-300 border border-white/10">
-              <div className="font-bold text-white mb-3 text-base">🎮 MONOPOLY-STYLE FEATURES:</div>
-              <ul className="space-y-2 leading-relaxed">
-                <li>• Roll doubles to get extra turns (roll again after each double!)</li>
-                <li>• Jail/Detention mechanics (3 attempts to roll doubles, then pay $50)</li>
-                <li>• Chance cards with rewards & penalties</li>
-                <li>• Dynamic rent based on monopolies (own all in a group = 2× rent)</li>
-                <li>• Stock trading with shopping cart</li>
-                <li>• Utilities & transport stations</li>
-              </ul>
-              <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-300 text-xs">
-                ⚠️ <strong>Hotseat mode:</strong> Pass the device between players on your turn. Real-time multiplayer across separate devices is not yet supported.
+              <p className="mobile-hint">
+                <Expand size={12} /> Scroll the ring sideways to inspect every
+                destination.
+              </p>
+            </section>
+            <aside className="exchange-panel">
+              <div className="panel-label">
+                <span>THE PLAYERS</span>
+                <Users size={14} />
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 text-white p-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-4">
-          <h1
-            className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-pink-400"
-            style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
-          >
-            CAPITAL WARS 2050
-          </h1>
-          <div className="text-sm text-gray-300 mt-1 font-medium">
-            Round {roundNumber + 1}
-            {canRollAgain && (
-              <span className="ml-2 text-yellow-300 font-bold animate-pulse">
-                🎯 DOUBLES — Roll again!
-              </span>
-            )}
-          </div>
-          {/* Hotseat reminder */}
-          <div className="mt-2 inline-block text-xs bg-white/5 border border-white/10 rounded px-3 py-1 text-gray-400">
-            Hotseat — pass the device on each turn
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Left column */}
-          <div className="space-y-4">
-            {/* Players panel */}
-            <div className="bg-black/40 backdrop-blur-xl rounded-xl p-4 border border-white/10">
-              <h2 className="text-xl font-bold mb-3 flex items-center gap-2">
-                <Users className="w-5 h-5" />
-                Corporations
-              </h2>
-              {players.map((player, idx) => (
-                <div
-                  key={player.id}
-                  className={`mb-3 p-3 rounded-lg border-2 transition-all ${
-                    idx === currentPlayerIndex
-                      ? `${player.border} bg-white/10 shadow-lg`
-                      : 'border-white/5 bg-white/5'
-                  }`}
+              <div className="players">
+                {game.players.map((p) => (
+                  <div
+                    key={p.id}
+                    className={`trader ${p.id === game.current ? "current" : ""} ${p.bankrupt ? "bankrupt" : ""}`}
+                    style={{ "--player": p.color } as React.CSSProperties}
+                  >
+                    <span className="avatar">{p.avatar}</span>
+                    <div>
+                      <b>{p.name}</b>
+                      <small>
+                        {p.bankrupt
+                          ? "BANKRUPT"
+                          : p.jail >= 0
+                            ? "UNDER AUDIT"
+                            : BOARD[p.position].shortName}
+                      </small>
+                    </div>
+                    <div className="trader-cash">
+                      <b>{money(p.cash)}</b>
+                      <small>{money(netWorth(p))} NET</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {game.pending !== null && !game.card && !game.debt.length && (
+                <section className="action-panel">
+                  <span className="eyebrow">UNCLAIMED OPPORTUNITY</span>
+                  <h3>{BOARD[game.pending].name}</h3>
+                  <p>
+                    Acquire for {money(BOARD[game.pending].cost!)} or send it to
+                    an open auction. Every player can bid.
+                  </p>
+                  <button
+                    className="primary"
+                    disabled={player!.cash < BOARD[game.pending].cost!}
+                    onClick={() => dispatch({ type: "BUY" })}
+                  >
+                    BUY PROPERTY <ArrowRight size={15} />
+                  </button>
+                  <button
+                    className="outline"
+                    onClick={() => dispatch({ type: "AUCTION" })}
+                  >
+                    SEND TO AUCTION
+                  </button>
+                </section>
+              )}
+              {game.auction && (
+                <section className="action-panel auction">
+                  <span className="eyebrow">LIVE AUCTION</span>
+                  <h3>{BOARD[game.auction.space].name}</h3>
+                  <div className="auction-price">
+                    {money(game.auction.bid)}
+                    <small>
+                      {game.auction.leader === null
+                        ? "NO BIDS YET"
+                        : `LEADING: ${game.players[game.auction.leader].name}`}
+                    </small>
+                  </div>
+                  <p>
+                    <b
+                      style={{ color: game.players[game.auction.bidder].color }}
+                    >
+                      {game.players[game.auction.bidder].name}
+                    </b>{" "}
+                    is bidding. Available:{" "}
+                    {money(game.players[game.auction.bidder].cash)}.
+                  </p>
+                  <div className="bid-buttons">
+                    {[1, 10, 50].map((n) => (
+                      <button
+                        key={n}
+                        disabled={
+                          game.auction!.bid + n >
+                          game.players[game.auction!.bidder].cash
+                        }
+                        onClick={() =>
+                          dispatch({
+                            type: "BID",
+                            amount: game.auction!.bid + n,
+                          })
+                        }
+                      >
+                        +{n}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    className="outline"
+                    onClick={() => dispatch({ type: "PASS" })}
+                  >
+                    PASS & WITHDRAW
+                  </button>
+                </section>
+              )}
+              {!!game.debt.length && !game.card && (
+                <section className="action-panel debt-panel">
+                  <span className="eyebrow">SETTLEMENT REQUIRED</span>
+                  <h3>
+                    {debtor!.name} owes {money(game.debt[0].amount)}
+                  </h3>
+                  <p>
+                    To{" "}
+                    {game.debt[0].creditor === null
+                      ? "the bank"
+                      : game.players[game.debt[0].creditor!].name}
+                    . Sell buildings or mortgage assets below. The full debt
+                    settles when enough cash is available.
+                  </p>
+                  <button
+                    className="outline"
+                    onClick={() => dispatch({ type: "BANKRUPT" })}
+                  >
+                    DECLARE BANKRUPTCY
+                  </button>
+                  <small>
+                    Available only when liquidation cannot cover the debt.
+                  </small>
+                </section>
+              )}
+              <div className="portfolio-heading">
+                <span className="panel-label">
+                  {debtor ? "DEBT RECOVERY" : "YOUR PORTFOLIO"}
+                </span>
+                <button
+                  disabled={unresolved || rolling}
+                  onClick={() => setTrading(true)}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-4 h-4 rounded-full ${player.color} shadow-md`}></div>
-                      <span className="font-bold text-sm">
-                        {player.name}
-                        {idx === currentPlayerIndex && (
-                          <span className="ml-1 text-yellow-300 text-xs">▶ YOUR TURN</span>
-                        )}
+                  <ArrowLeftRight size={13} /> Trade
+                </button>
+              </div>
+              <div className="portfolio-list">
+                {Object.keys(manager!.assets).length ? (
+                  Object.keys(manager!.assets).map((id) => (
+                    <button key={id} onClick={() => setSelected(+id)}>
+                      <i
+                        style={{
+                          background: BOARD[+id].group
+                            ? GROUPS[BOARD[+id].group!].color
+                            : "#b6c9d5",
+                        }}
+                      />
+                      <span>{BOARD[+id].shortName}</span>
+                      <small>
+                        {manager!.mortgages.includes(+id)
+                          ? "MORTGAGED"
+                          : LEVELS[manager!.assets[+id]]}
+                      </small>
+                      <ChevronRight size={12} />
+                    </button>
+                  ))
+                ) : (
+                  <p className="empty-portfolio">
+                    No deeds yet. Land somewhere worth owning.
+                  </p>
+                )}
+              </div>
+              <div className="bank-stock">
+                <Home size={13} /> BANK: {inventory(game).houses} HOUSES /{" "}
+                {inventory(game).hotels} HOTELS
+              </div>
+              {!!game.modifiers.length && (
+                <div className="world-events">
+                  <div className="panel-label">MARKET CONDITIONS</div>
+                  {game.modifiers.map((m, i) => (
+                    <p key={i}>
+                      <Zap size={12} />
+                      <b>{m.title}</b>
+                      <span>
+                        {m.multiplier}× {m.type} · {m.until - game.turn} turns
                       </span>
+                    </p>
+                  ))}
+                </div>
+              )}
+              <div className="activity">
+                <div className="panel-label">
+                  <span>THE LIVE WIRE</span>
+                  <Radio size={12} />
+                </div>
+                <div aria-live="polite">
+                  {game.logs
+                    .slice(-5)
+                    .reverse()
+                    .map((l, i) => (
+                      <p key={`${l}-${i}`}>
+                        <span>
+                          {String(game.logs.length - i).padStart(2, "0")}
+                        </span>
+                        {l}
+                      </p>
+                    ))}
+                </div>
+              </div>
+            </aside>
+          </div>
+        </>
+      )}
+      {space && game && !game.card && (
+        <Modal title={space.name} onClose={() => setSelected(null)}>
+          <div
+            className="deed-stripe"
+            style={{
+              background: space.group ? GROUPS[space.group].color : "#a8d5c9",
+            }}
+          />
+          <span className="eyebrow">
+            {space.region || "GLOBAL SYSTEM"} / DESTINATION {space.id}
+          </span>
+          <p>
+            {owner
+              ? `Owned by ${owner.name}`
+              : space.cost
+                ? `Available from the bank · ${money(space.cost)}`
+                : space.id === 0
+                  ? "Pass Launch to collect 200."
+                  : space.id === 11
+                    ? "Just visiting unless sent here. Leave audit with doubles, a 50 payment, or the mandatory third-turn fine."
+                    : space.id === 31
+                      ? "Move directly to Audit. Do not collect Launch salary."
+                      : space.kind === "tax"
+                        ? `Pay ${money(space.amount || 0)} to the bank.`
+                        : "Draw an event. Its effects settle automatically."}
+          </p>
+          {space.cost && (
+            <>
+              <div className="deed-stats">
+                <div>
+                  <span>RENT NOW</span>
+                  <b>{owner ? money(rentFor(game, space.id)) : "—"}</b>
+                </div>
+                <div>
+                  <span>MORTGAGE VALUE</span>
+                  <b>{money(Math.floor(space.cost / 2))}</b>
+                </div>
+              </div>
+              {space.rent && (
+                <div className="rent-table">
+                  {rents(space.id).map((r, i) => (
+                    <div
+                      key={i}
+                      className={owner?.assets[space.id] === i ? "active" : ""}
+                    >
+                      <span>{LEVELS[i]}</span>
+                      <b>{money(r)}</b>
                     </div>
-                    {player.inJail && (
-                      <span className="text-xs bg-red-500/30 px-2 py-1 rounded border border-red-400">
-                        🔒 JAIL {player.jailTurns}/3
-                      </span>
+                  ))}
+                </div>
+              )}
+              {space.kind === "transit" && (
+                <p>Network rent: 25 / 50 / 100 for 1 / 2 / 3 links owned.</p>
+              )}
+              {space.kind === "utility" && (
+                <p>
+                  Rent is 4× the dice total, or 10× when both utilities are
+                  owned.
+                </p>
+              )}
+              {owner &&
+                owner.id === manager?.id &&
+                !game.auction &&
+                !game.trade &&
+                !rolling && (
+                  <div className="deed-actions">
+                    {space.kind === "asset" && (
+                      <>
+                        <button
+                          className="primary"
+                          disabled={
+                            !!buildReason(game, space.id) || !!game.debt.length
+                          }
+                          onClick={() =>
+                            dispatch({ type: "BUILD", space: space.id })
+                          }
+                        >
+                          BUILD{" "}
+                          {owner.assets[space.id] === 4 ? "HOTEL" : "HOUSE"} ·{" "}
+                          {money(buildingCost(space.id))}
+                        </button>
+                        <small>
+                          {buildReason(game, space.id) ||
+                            "Build evenly. A complete colour set is required."}
+                        </small>
+                        <button
+                          className="outline"
+                          disabled={!owner.assets[space.id]}
+                          onClick={() =>
+                            dispatch({ type: "SELL", space: space.id })
+                          }
+                        >
+                          SELL ONE BUILDING ·{" "}
+                          {money(buildingCost(space.id) / 2)}
+                        </button>
+                        <button
+                          className="outline"
+                          onClick={() =>
+                            dispatch({ type: "LIQUIDATE", space: space.id })
+                          }
+                        >
+                          SELL ALL BUILDINGS IN THIS COLOUR SET
+                        </button>
+                      </>
                     )}
+                    <button
+                      className="outline"
+                      onClick={() =>
+                        dispatch({ type: "MORTGAGE", space: space.id })
+                      }
+                    >
+                      {owner.mortgages.includes(space.id)
+                        ? `REDEEM · ${money(Math.ceil(Math.floor(space.cost / 2) * 1.1))}`
+                        : `MORTGAGE · ${money(Math.floor(space.cost / 2))}`}
+                    </button>
+                    <small>
+                      Sell all buildings in this colour set before mortgaging.
+                      Mortgaged properties earn no rent. Redemption costs
+                      principal + 10%.
+                    </small>
                   </div>
-                  <div className="text-xs space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Cash:</span>
-                      <span className="text-green-400 font-bold">${player.cash.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Net Worth:</span>
-                      <span className="text-cyan-400 font-bold">${player.netWorth.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Districts:</span>
-                      <span className="font-semibold">{player.properties.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Location:</span>
-                      <span className="text-xs truncate max-w-[120px]">{DISTRICTS[player.position].name}</span>
-                    </div>
-                  </div>
+                )}
+            </>
+          )}
+        </Modal>
+      )}
+      {game?.card && (
+        <Modal
+          title={game.card.title}
+          className={`event-modal tone-${game.card.tone}`}
+        >
+          <span className="eyebrow">
+            {game.card.deck === "pulse" ? "PUBLIC PULSE" : "THE GROUP CHAT"} /{" "}
+            {game.card.kicker}
+          </span>
+          <div className="event-symbol">
+            <Zap size={56} strokeWidth={1} />
+          </div>
+          <p className="event-body">{game.card.body}</p>
+          <p className="event-settled">
+            {game.debt.length
+              ? "Payment queued. Manage debt after closing this card."
+              : "Effect applied to the economy."}
+          </p>
+          <button
+            className="primary"
+            onClick={() => dispatch({ type: "DISMISS" })}
+          >
+            BACK TO THE EXCHANGE <ArrowRight size={16} />
+          </button>
+        </Modal>
+      )}
+      {trading && game && (
+        <TradeForm
+          game={game}
+          onClose={() => setTrading(false)}
+          onPropose={(t) => {
+            dispatch({ type: "TRADE", trade: t });
+            setTrading(false);
+          }}
+        />
+      )}
+      {game?.trade && (
+        <Modal title="A deal is on the table.">
+          <span className="eyebrow">
+            PASS THE DEVICE TO{" "}
+            {game.players[game.trade.partner].name.toUpperCase()}
+          </span>
+          <p>
+            {player!.name} offers {money(game.trade.cashGive)}
+            {game.trade.give.map((id) => ` + ${BOARD[id].name}`).join("")}.
+          </p>
+          <p>
+            In exchange for {money(game.trade.cashTake)}
+            {game.trade.take.map((id) => ` + ${BOARD[id].name}`).join("")}.
+          </p>
+          <div className="modal-actions">
+            <button
+              className="primary"
+              onClick={() => dispatch({ type: "ACCEPT" })}
+            >
+              ACCEPT TRADE
+            </button>
+            <button
+              className="outline"
+              onClick={() => dispatch({ type: "REJECT" })}
+            >
+              REJECT
+            </button>
+          </div>
+        </Modal>
+      )}
+      {rules && (
+        <Modal
+          title="The rules of this world."
+          onClose={() => setRules(false)}
+          className="rules-modal"
+        >
+          <span className="eyebrow">
+            FAMILIAR STRATEGY / DIFFERENT GEOMETRY
+          </span>
+          <p>
+            2–4 people on one device. Everyone starts with 1,500. Travel
+            clockwise through 32 destinations. Select any sector to inspect its
+            deed.
+          </p>
+          <ol>
+            <li>
+              <b>Roll, land, resolve.</b> Collect 200 when crossing Launch. Buy
+              an unowned property or auction it to all players. Bids start at 1.
+              A pass withdraws you from that auction.
+            </li>
+            <li>
+              <b>Own a colour. Build an empire.</b> A complete colour set
+              doubles undeveloped rent. Build evenly: four houses, then one
+              hotel. The bank has 32 houses and 12 hotels. Sell evenly for half
+              the building price.
+            </li>
+            <li>
+              <b>Negotiate.</b> Trade cash and undeveloped, unmortgaged deeds.
+              Both players must approve. Sell every building in a colour set
+              before trading a deed from it.
+            </li>
+            <li>
+              <b>Debt has consequences.</b> Mortgage unimproved properties for
+              half their price. They stop earning rent. Redeem for principal +
+              10%. Settle debt before proceeding. If liquidation cannot cover
+              it, declare bankruptcy.
+            </li>
+            <li>
+              <b>Doubles and audit.</b> Doubles earn another roll; three
+              consecutive doubles send you to Audit. Final Bell Gate also sends
+              you there. Escape with doubles or pay 50; after three failed
+              attempts the fine is mandatory. Visiting Audit is harmless.
+            </li>
+            <li>
+              <b>A living economy.</b> Pulse and Group Chat cards add payouts,
+              costs, movement, frozen turns and temporary rent effects. Two
+              decks cycle without replacement. Card movement resolves its
+              destination.
+            </li>
+            <li>
+              <b>Win your way.</b> Classic ends with one solvent player. Sprint
+              ends after 60 minutes of active play and ranks survivors by net
+              worth. Modal decisions and pauses stop the clock.
+            </li>
+          </ol>
+          <p className="rules-note">
+            An original 32-space variant, not an official Monopoly edition.
+            Local multiplayer only. Building shortages wait for supply; they do
+            not trigger building auctions. Mortgaged deeds are excluded from
+            voluntary trades. Bankruptcy to the bank auctions returned deeds;
+            creditor bankruptcies transfer deeds and charge mortgage interest.
+          </p>
+          <div className="rules-sources">
+            <a
+              href="https://www.hasbro.com/common/instruct/monins.pdf"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Hasbro rules reference ↗
+            </a>
+            <a
+              href="https://www.ubisoft.com/en-us/games/new-monopoly"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Animated world precedent ↗
+            </a>
+          </div>
+        </Modal>
+      )}
+      {paused && game && game.phase !== "over" && (
+        <Modal title="The exchange is paused.">
+          <p>Your session is saved on this device. Take your time.</p>
+          <button className="primary" onClick={() => setPaused(false)}>
+            <Play size={16} /> RESUME SESSION
+          </button>
+          <button className="outline" onClick={() => setRestart(true)}>
+            START A NEW SESSION
+          </button>
+        </Modal>
+      )}
+      {restart && (
+        <Modal title="Start a fresh economy?" onClose={() => setRestart(false)}>
+          <p>This replaces the saved session on this device.</p>
+          <button
+            className="primary"
+            onClick={() => {
+              setGame(null);
+              setSaved(null);
+              setPaused(false);
+              setRestart(false);
+              setSelected(null);
+              try {
+                localStorage.removeItem(SAVE);
+              } catch {
+                setSaveError(true);
+              }
+            }}
+          >
+            NEW SESSION <RotateCcw size={16} />
+          </button>
+        </Modal>
+      )}
+      {game?.phase === "over" && (
+        <Modal title={`${game.players[game.winner!].name} owns the orbit.`}>
+          <span className="eyebrow">
+            THE FINAL BELL /{" "}
+            {game.mode === "classic"
+              ? "LAST EMPIRE STANDING"
+              : "SPRINT COMPLETE"}
+          </span>
+          <div className="rankings">
+            {[...game.players]
+              .sort(
+                (a, b) =>
+                  Number(a.bankrupt) - Number(b.bankrupt) ||
+                  netWorth(b) - netWorth(a),
+              )
+              .map((p, i) => (
+                <div key={p.id}>
+                  <span>0{i + 1}</span>
+                  <b style={{ color: p.color }}>{p.name}</b>
+                  <strong>
+                    {p.bankrupt ? "BANKRUPT" : money(netWorth(p))}
+                  </strong>
                 </div>
               ))}
-            </div>
-
-            {/* Stock market */}
-            <div className="bg-black/40 backdrop-blur-xl rounded-xl p-4 border border-white/10">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5" />
-                  Global Markets
-                </h2>
-                {stockCart.length > 0 && (
-                  <button
-                    onClick={() => setShowStockCart(!showStockCart)}
-                    className="relative bg-purple-600 hover:bg-purple-700 p-2 rounded-lg transition-all"
-                  >
-                    <ShoppingCart className="w-5 h-5" />
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
-                      {stockCart.length}
-                    </span>
-                  </button>
-                )}
-              </div>
-
-              {showStockCart && stockCart.length > 0 && (
-                <div className="mb-3 p-3 bg-purple-900/30 rounded-lg border border-purple-500">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-bold text-sm">Shopping Cart</h3>
-                    <button onClick={() => setShowStockCart(false)}>
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="space-y-2 mb-2">
-                    {stockCart.map(item => {
-                      const livePrice = stockPrices[item.ticker]?.price ?? item.price;
-                      return (
-                        <div
-                          key={item.ticker}
-                          className="flex items-center justify-between text-xs bg-white/5 p-2 rounded"
-                        >
-                          <div>
-                            <div className="font-bold">{item.ticker}</div>
-                            <div className="text-gray-400">${livePrice} × {item.quantity}</div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => updateCartQuantity(item.ticker, item.quantity - 1)}
-                              className="bg-red-600 hover:bg-red-700 px-2 py-1 rounded text-xs"
-                            >
-                              -
-                            </button>
-                            <span className="font-bold">{item.quantity}</span>
-                            <button
-                              onClick={() => updateCartQuantity(item.ticker, item.quantity + 1)}
-                              className="bg-green-600 hover:bg-green-700 px-2 py-1 rounded text-xs"
-                            >
-                              +
-                            </button>
-                            <button
-                              onClick={() => removeFromCart(item.ticker)}
-                              className="bg-gray-600 hover:bg-gray-700 px-2 py-1 rounded text-xs ml-1"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="flex items-center justify-between mb-2 pt-2 border-t border-white/20">
-                    <span className="font-bold">Total:</span>
-                    <span className="text-green-400 font-bold">${cartTotal.toLocaleString()}</span>
-                  </div>
-                  <button
-                    onClick={checkoutCart}
-                    disabled={!currentPlayer || currentPlayer.cash < cartTotal}
-                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-2 rounded text-xs font-bold transition-all"
-                  >
-                    Checkout (${cartTotal})
-                  </button>
-                </div>
-              )}
-
-              {Object.entries(stockPrices).map(([ticker, stock]) => {
-                const Icon = stock.icon;
-                const owned = currentPlayer?.stocks[ticker] || 0;
-                // FIX: stock buying only allowed after rolling (can't buy before your roll)
-                const cantBuy = !currentPlayer || currentPlayer.cash < stock.price || turnPhase === 'roll';
-                return (
-                  <div
-                    key={ticker}
-                    className="mb-3 p-3 bg-white/5 rounded-lg border border-white/10 hover:border-white/20 transition-all"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Icon className="w-4 h-4" />
-                        <div>
-                          <div className="font-bold text-sm">{ticker}</div>
-                          <div className="text-xs text-gray-400">{stock.name}</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-green-400 font-bold">${stock.price}</div>
-                        {owned > 0 && <div className="text-xs text-cyan-400">Own: {owned}</div>}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => addToCart(ticker)}
-                      disabled={cantBuy}
-                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-1.5 rounded text-xs font-bold transition-all"
-                    >
-                      {turnPhase === 'roll' ? 'Roll first' : 'Add to Cart'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
           </div>
-
-          {/* Right two columns */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Dice & controls */}
-            <div className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-white/10">
-              <div className="text-center mb-4">
-                <h3 className="text-2xl font-bold mb-2 flex items-center justify-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${currentPlayer?.color} shadow-lg`}></div>
-                  {currentPlayer?.name}
-                  {currentPlayer?.inJail && <span className="text-red-400 text-sm">(IN JAIL)</span>}
-                </h3>
-                <div className="text-sm text-gray-300">
-                  {currentPlayer?.inJail
-                    ? `Roll doubles to escape, or wait ${3 - currentPlayer.jailTurns} more turn(s) then pay $50`
-                    : canRollAgain
-                    ? 'You rolled doubles! Roll again or end your turn.'
-                    : turnPhase === 'roll'
-                    ? 'Roll the dice to move'
-                    : turnPhase === 'action'
-                    ? 'Take actions, buy stocks, or end your turn'
-                    : 'Processing...'}
-                </div>
-              </div>
-
-              <div className="flex justify-center gap-4 mb-6">
-                <div className="bg-gradient-to-br from-white to-gray-200 text-black rounded-xl p-8 flex items-center justify-center shadow-xl transform hover:scale-105 transition-transform w-20 h-20">
-                  <span className="text-5xl font-bold">{dice[0]}</span>
-                </div>
-                <div className="bg-gradient-to-br from-white to-gray-200 text-black rounded-xl p-8 flex items-center justify-center shadow-xl transform hover:scale-105 transition-transform w-20 h-20">
-                  <span className="text-5xl font-bold">{dice[1]}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={rollDice}
-                  // FIX: allow rolling when canRollAgain (doubles), block otherwise if already rolled
-                  disabled={rolledThisTurn && !canRollAgain}
-                  className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-4 rounded-lg font-bold text-lg flex items-center justify-center gap-2 transition-all transform hover:scale-105 shadow-lg"
-                >
-                  🎲 {canRollAgain ? 'Roll Again!' : 'Roll Dice'}
-                </button>
-                <button
-                  onClick={endTurn}
-                  disabled={!rolledThisTurn}
-                  className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-4 rounded-lg font-bold text-lg flex items-center justify-center gap-2 transition-all transform hover:scale-105 shadow-lg"
-                >
-                  End Turn →
-                </button>
-              </div>
-
-              {canRollAgain && !currentPlayer?.inJail && (
-                <div className="mt-3 bg-yellow-500/20 border border-yellow-500 rounded-lg p-3 text-center">
-                  <span className="text-yellow-300 font-bold">
-                    🎯 Doubles! Roll again or end your turn.
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Board */}
-            <div className="bg-black/40 backdrop-blur-xl rounded-xl p-4 border border-white/10">
-              <h3 className="font-bold mb-3 flex items-center gap-2">
-                <Globe className="w-5 h-5" />
-                Global Map
-              </h3>
-              <div className="grid grid-cols-10 gap-1">
-                {DISTRICTS.map(district => {
-                  const playersHere = players.filter(p => p.position === district.id);
-                  const owner = players.find(p => p.properties.includes(district.id));
-                  const Icon = district.icon;
-                  return (
-                    <div
-                      key={district.id}
-                      className={`h-16 rounded-lg ${getDistrictColor(district.color)} relative border-2 border-white/30 flex flex-col items-center justify-center cursor-pointer hover:scale-110 hover:shadow-lg transition-all`}
-                      title={`${district.name}${district.cost ? ` — $${district.cost}` : ''}`}
-                    >
-                      <Icon className="w-4 h-4 text-white mb-0.5" />
-                      {playersHere.length > 0 && (
-                        <div className="absolute -top-1 -right-1 flex gap-0.5">
-                          {playersHere.map(p => (
-                            <div
-                              key={p.id}
-                              className={`w-2.5 h-2.5 rounded-full ${p.color} border border-white shadow-lg`}
-                            ></div>
-                          ))}
-                        </div>
-                      )}
-                      {owner && (
-                        <div
-                          className={`absolute -bottom-1 -left-1 w-3 h-3 rounded-full ${owner.color} border-2 border-white shadow-md`}
-                        ></div>
-                      )}
-                      {district.type === 'jail' && (
-                        <span className="absolute top-0 left-0 text-[8px] bg-red-500 px-1 rounded">JAIL</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="mt-3 text-xs text-gray-400 flex items-center gap-4">
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-white border border-gray-400"></div>
-                  <span>Player token (top-right)</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 rounded-full bg-white border border-gray-400"></div>
-                  <span>Owner dot (bottom-left)</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Activity log */}
-            <div className="bg-black/40 backdrop-blur-xl rounded-xl p-4 border border-white/10">
-              <h3 className="font-bold mb-2 flex items-center gap-2">📜 Activity Log</h3>
-              <div className="space-y-1 text-xs font-mono max-h-40 overflow-y-auto">
-                {gameLog.map((log, idx) => (
-                  <div
-                    key={idx}
-                    className="text-gray-300 bg-white/5 px-3 py-1.5 rounded hover:bg-white/10 transition-colors"
-                  >
-                    {log}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Buy district modal */}
-        {showDistrictModal && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 max-w-md w-full border-2 border-cyan-500 shadow-2xl">
-              <div className="flex items-center gap-3 mb-4">
-                {React.createElement(showDistrictModal.icon, { className: 'w-8 h-8' })}
-                <h2 className="text-2xl font-bold">{showDistrictModal.name}</h2>
-              </div>
-              <div className="space-y-3 mb-6">
-                {showDistrictModal.type === 'utility' && (
-                  <div className="bg-blue-500/20 border border-blue-400 rounded p-2 text-sm">
-                    <span className="font-bold">Utility:</span> Rent = Dice roll × (4 if 1 owned, 10 if both owned)
-                  </div>
-                )}
-                {showDistrictModal.type === 'transport' && (
-                  <div className="bg-purple-500/20 border border-purple-400 rounded p-2 text-sm">
-                    <span className="font-bold">Transport:</span> $25 → $50 → $100 → $200 based on number owned
-                  </div>
-                )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Cost:</span>
-                  <span className="font-bold text-green-400 text-lg">
-                    ${showDistrictModal.cost?.toLocaleString()}
-                  </span>
-                </div>
-                {showDistrictModal.rent && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Base Rent:</span>
-                    <span className="font-bold">${showDistrictModal.rent[0]}</span>
-                  </div>
-                )}
-                {showDistrictModal.region && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Region:</span>
-                    <span className="font-bold">{showDistrictModal.region}</span>
-                  </div>
-                )}
-                {showDistrictModal.group && (
-                  <div className="bg-yellow-500/20 border border-yellow-400 rounded p-2 text-sm">
-                    💡 <span className="font-bold">Tip:</span> Own all in this group for 2× rent!
-                  </div>
-                )}
-                <div className="h-px bg-white/20 my-3"></div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Your Cash:</span>
-                  <span
-                    className={`font-bold ${
-                      currentPlayer && showDistrictModal.cost && currentPlayer.cash >= showDistrictModal.cost
-                        ? 'text-green-400'
-                        : 'text-red-400'
-                    }`}
-                  >
-                    ${currentPlayer?.cash.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={buyDistrict}
-                  disabled={
-                    !currentPlayer ||
-                    !showDistrictModal.cost ||
-                    currentPlayer.cash < showDistrictModal.cost
-                  }
-                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed py-3 rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg"
-                >
-                  Buy Property
-                </button>
-                <button
-                  onClick={() => setShowDistrictModal(null)}
-                  className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 py-3 rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg"
-                >
-                  Pass
-                </button>
-              </div>
-            </div>
-          </div>
+          <button
+            className="primary"
+            onClick={() => {
+              setGame(null);
+              setSaved(null);
+              setSelected(null);
+            }}
+          >
+            PLAY AGAIN <ArrowRight size={16} />
+          </button>
+        </Modal>
+      )}
+    </main>
+  );
+}
+function Modal({
+  title,
+  onClose,
+  children,
+  className = "",
+}: {
+  title: string;
+  onClose?: () => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const ref = useRef<HTMLElement>(null),
+    closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement;
+    ref.current?.focus();
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeRef.current?.();
+      if (e.key === "Tab") {
+        const els = ref.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled),a,input,select,[tabindex="0"]',
+        );
+        if (!els?.length) {
+          e.preventDefault();
+          return;
+        }
+        const first = els[0],
+          last = els[els.length - 1];
+        if (
+          e.shiftKey &&
+          (document.activeElement === first ||
+            document.activeElement === ref.current)
+        ) {
+          e.preventDefault();
+          last.focus();
+        } else if (
+          !e.shiftKey &&
+          (document.activeElement === last ||
+            document.activeElement === ref.current)
+        ) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => {
+      document.removeEventListener("keydown", handler);
+      previous?.focus();
+    };
+  }, []);
+  return (
+    <div
+      className="modal-backdrop"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose?.();
+      }}
+    >
+      <section
+        ref={ref}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`modal ${className}`}
+      >
+        {onClose && (
+          <button className="close" aria-label="Close dialog" onClick={onClose}>
+            <X size={18} />
+          </button>
         )}
-      </div>
+        <h2>{title}</h2>
+        {children}
+      </section>
     </div>
+  );
+}
+function TradeForm({
+  game,
+  onClose,
+  onPropose,
+}: {
+  game: OrbitState;
+  onClose: () => void;
+  onPropose: (t: Trade) => void;
+}) {
+  const p = game.players[game.current],
+    [partner, setPartner] = useState(
+      game.players.find((q) => !q.bankrupt && q.id !== p.id)!.id,
+    ),
+    [give, setGive] = useState<number[]>([]),
+    [take, setTake] = useState<number[]>([]),
+    [cashGive, setCashGive] = useState(0),
+    [cashTake, setCashTake] = useState(0);
+  const q = game.players[partner];
+  const deeds = (who: Trader) =>
+    Object.keys(who.assets)
+      .map(Number)
+      .filter(
+        (id) =>
+          !who.mortgages.includes(id) &&
+          !BOARD.some(
+            (b) =>
+              b.group && b.group === BOARD[id].group && who.assets[b.id] > 0,
+          ),
+      );
+  const toggle = (id: number, a: number[], set: (a: number[]) => void) =>
+    set(a.includes(id) ? a.filter((i) => i !== id) : [...a, id]);
+  return (
+    <Modal title="Make your next move." onClose={onClose}>
+      <span className="eyebrow">A PROPOSAL NEEDS TWO YES VOTES</span>
+      <label className="field">
+        TRADE WITH
+        <select
+          value={partner}
+          onChange={(e) => {
+            setPartner(+e.target.value);
+            setTake([]);
+            setCashTake(0);
+          }}
+        >
+          {game.players
+            .filter((q) => !q.bankrupt && q.id !== p.id)
+            .map((q) => (
+              <option key={q.id} value={q.id}>
+                {q.name}
+              </option>
+            ))}
+        </select>
+      </label>
+      <div className="trade-columns">
+        {[
+          {
+            who: p,
+            title: "YOU OFFER",
+            ids: give,
+            set: setGive,
+            cash: cashGive,
+            setCash: setCashGive,
+          },
+          {
+            who: q,
+            title: "YOU REQUEST",
+            ids: take,
+            set: setTake,
+            cash: cashTake,
+            setCash: setCashTake,
+          },
+        ].map((c) => (
+          <div key={c.title}>
+            <h4>{c.title}</h4>
+            <label className="field">
+              CASH (MAX {c.who.cash})
+              <input
+                type="number"
+                min="0"
+                max={c.who.cash}
+                step="1"
+                value={c.cash}
+                onChange={(e) =>
+                  c.setCash(
+                    Math.max(
+                      0,
+                      Math.min(c.who.cash, Math.floor(+e.target.value)),
+                    ),
+                  )
+                }
+              />
+            </label>
+            {deeds(c.who).map((id) => (
+              <label className="trade-deed" key={id}>
+                <input
+                  type="checkbox"
+                  checked={c.ids.includes(id)}
+                  onChange={() => toggle(id, c.ids, c.set)}
+                />
+                {BOARD[id].name}
+              </label>
+            ))}
+            {!deeds(c.who).length && <p>No eligible deeds.</p>}
+          </div>
+        ))}
+      </div>
+      <p className="rules-note">
+        Only undeveloped, unmortgaged deeds can be exchanged. Cash transfers
+        happen together when accepted.
+      </p>
+      <button
+        className="primary"
+        disabled={!give.length && !take.length && !cashGive && !cashTake}
+        onClick={() => onPropose({ partner, give, take, cashGive, cashTake })}
+      >
+        PROPOSE TRADE <ArrowLeftRight size={16} />
+      </button>
+    </Modal>
   );
 }

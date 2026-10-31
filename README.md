@@ -1,395 +1,42 @@
-# 🚀 CAPITAL WARS 2050
+# Capital Wars — The Orbital Economy
 
-**The Modern Economic Strategy Game for the Digital Age**
+An original property strategy game set around a circular particle accelerator. Buy skylines, assemble colour sets, develop houses and hotels, negotiate trades and survive economic shocks.
 
-> Build your corporate empire in a world of AI, space exploration, and dynamic markets. Learn real finance while dominating the global economy.
-> [Live Demo](https://modern-monopoly.vercel.app/)
+**Play:** https://modern-monopoly.vercel.app
 
+## Play locally
 
-[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE.md)
-[![Version](https://img.shields.io/badge/version-0.1.0--alpha-blue.svg)](package.json)
-[![Status](https://img.shields.io/badge/status-prototype-yellow.svg)]()
-
----
-
-## 📋 TABLE OF CONTENTS
-
-- [About](#about)
-- [Quick Start](#quick-start)
-- [Features](#features)
-- [Screenshots](#screenshots)
-- [Technology Stack](#technology-stack)
-- [Installation](#installation)
-- [Development](#development)
-- [Roadmap](#roadmap)
-- [Business Model](#business-model)
-- [Contributing](#contributing)
-- [License & IP](#license--ip)
-- [Contact](#contact)
-
----
-
-## 🎯 ABOUT
-
-**Capital Wars 2050** is a next-generation economic strategy game that combines classic property trading mechanics with modern financial systems including:
-
-- 🏢 **Global Corporate Districts** - From Silicon Valley to Mars Colony
-- 📈 **Real-Time Stock Market** - 4 volatile sectors with dynamic pricing
-- 🌍 **Economic Events** - AI booms, market crashes, space races
-- 💰 **Inflation Simulation** - Learn how purchasing power changes over time
-- 🎓 **Educational Focus** - Built for business schools and finance enthusiasts
-- 🤝 **Multiplayer Ready** - Compete with friends in real-time
-
-**Target Audience:**
-- Finance students & educators
-- Strategy game enthusiasts
-- Corporate training programs
-- Economics classrooms
-
-**Legally Distinct:** This is an original work inspired by classic property trading games, not affiliated with any existing IP.
-
----
-
-## ✨ FEATURES
-
-### Current Version (v0.1.0 - Alpha)
-
-✅ **Core Gameplay**
-- 2-4 player local multiplayer
-- 40 unique global districts (tech hubs, space stations, emerging markets)
-- Dynamic dice rolling and movement system
-- Property acquisition and rent collection
-- Inflation-adjusted pricing over time
-
-✅ **Stock Market System**
-- 4 tradeable stocks: TECH, ENERGY, CRYPTO, SPACE
-- Real-time price fluctuations based on dice rolls
-- Volatility simulation (high-risk crypto vs stable energy)
-- Portfolio tracking for each player
-
-✅ **Economic Events**
-- 8 global events (AI Boom, Market Crash, Space Race, etc.)
-- Events trigger every 5 turns
-- Dynamic impact on markets and properties
-- Visual notifications with effects
-
-✅ **Modern UI/UX**
-- Glassmorphic design with gradients
-- Responsive layout (desktop, tablet, mobile)
-- Animated components
-- Real-time activity log
-- Player stats dashboard
-
-### Coming Soon (v0.2.0 - Beta)
-
-🔄 **Multiplayer Online**
-- Real-time WebSocket gameplay
-- Private room codes
-- Spectator mode
-- Global leaderboards
-
-🔄 **Advanced Features**
-- AI opponent (3 difficulty levels)
-- Contract system (loans, revenue sharing)
-- Court/lawsuit mechanics
-- Building upgrades (offices, data centers)
-- Save/resume games
-
-🔄 **Educational Mode**
-- Tutorial with finance lessons
-- Scenario-based challenges
-- Analytics dashboard for teachers
-- Customizable rule sets
-
----
-
-## 📸 SCREENSHOTS
-
-*(Add screenshots here once you have them)*
-
-```
-[Game Start Screen] | [Main Board] | [Stock Market Panel]
+```powershell
+npm install
+npm run dev
 ```
 
----
+Open http://localhost:3000. Requires Node.js 18.17+ (production uses Node.js 22).
 
+## The orbital edition
 
-3. **Replace `app/page.tsx` with the game code**
-4. **Run:** `npm run dev`
+- 32 clickable radial sectors, animated accelerator beams, travelling player tokens, ownership and building indicators.
+- Original animated architectural SVG scenery responds to the active destination. No external media requests or stock-media licences.
+- 2–4 local players with custom names. Classic plays to the last solvent player; Sprint scores surviving net worth after 60 active minutes.
+- Automatic rent, required purchase-or-auction decisions, open ascending auctions, complete colour sets, even building, four houses and hotels, finite building stock.
+- Mortgage and redeem deeds, sell buildings individually or liquidate an entire colour set, propose cash-and-property trades for the other player to accept or reject.
+- Doubles, three-doubles detention, audit fines/release, cyclic event decks, temporary economic effects and full destination resolution after movement cards.
+- Explicit debts, asset recovery, bankruptcy, creditor transfers, bank-estate auctions and victory detection.
+- Versioned device-local saves retain unfinished turns, auctions, decks and debts. A paused/closed session does not consume Sprint time.
+- Keyboard-accessible sectors and dialogs, focus management, responsive layouts, a motion toggle and reduced-motion support.
 
-capital-wars-2050/
-├── app/
-│   ├── page.tsx              # Main game component
-│   ├── layout.tsx            # Root layout
-│   └── globals.css           # Global styles
-├── components/
-│   ├── game/
-│   │   ├── Board.tsx         # Game board component
-│   │   ├── PlayerPanel.tsx   # Player stats
-│   │   └── StockMarket.tsx   # Market component
-│   └── ui/                   # Reusable UI components
-├── lib/
-│   ├── game-engine.ts        # Core game logic
-│   ├── constants.ts          # Game constants
-│   └── utils.ts              # Helper functions
-├── public/                   # Static assets
-├── package.json
-├── tsconfig.json
-├── tailwind.config.js
-└── README.md
+This is an original 32-space adaptation, **not an official or exact Monopoly edition**. Online rooms, AI opponents, building-shortage auctions, mortgaged voluntary trades and transferable jail-free cards are not implemented. See [edition notes and precedents](docs/ORBITAL_EDITION.md).
+
+## Validate
+
+```powershell
+npm run test:ci
+npm run type-check
+npm run build
 ```
 
-### Key Commands
+The pure transaction engine is `lib/orbit-engine.ts`. Board locations and economic decks are in `lib/game-data.ts`; the active UI is `app/page.tsx`. Older standalone components/docs are retained as development history and are not the active rules engine.
 
-```bash
-npm run dev          # Start dev server (localhost:3000)
-npm run build        # Build for production
-npm run start        # Start production server
-npm run lint         # Run ESLint
-npm run type-check   # TypeScript validation
-```
+The browser-local game needs no accounts, credentials or database. Its save belongs to the browser/device used to play; starting a new session replaces that save.
 
-### Code Style
-
-- **TypeScript strict mode** enabled
-- **ESLint** for linting
-- **Prettier** for formatting (coming soon)
-- **Conventional Commits** for git messages
-
----
-
-## 🗺️ ROADMAP
-
-### Phase 1: Prototype (Current) ✅
-- [x] Core gameplay mechanics
-- [x] Basic UI/UX
-- [x] Stock market system
-- [x] Economic events
-- [x] 2-4 player support
-
-### Phase 2: Beta (Months 1-3) 🔄
-- [ ] Online multiplayer
-- [ ] User authentication
-- [ ] AI opponent
-- [ ] Save/load system
-- [ ] Tutorial mode
-- [ ] Mobile optimization
-
-### Phase 3: Educational (Months 4-6) 📚
-- [ ] Teacher dashboard
-- [ ] Custom scenarios
-- [ ] Analytics & reporting
-- [ ] LMS integration
-- [ ] Educational content library
-- [ ] Classroom mode
-
-### Phase 4: Full Launch (Months 6-12) 🚀
-- [ ] Tournament system
-- [ ] Ranked matches
-- [ ] Custom boards (user-created)
-- [ ] Achievements & badges
-- [ ] Spectator mode
-- [ ] Mobile apps (iOS/Android)
-- [ ] API for third-party integrations
-
-### Phase 5: Expansion (Year 2+) 🌟
-- [ ] DLC: Space Expansion Pack
-- [ ] DLC: Cryptocurrency Wars
-- [ ] Corporate training modules
-- [ ] VR/AR version
-- [ ] Esports integration
-
----
-
-## 💰 BUSINESS MODEL
-
-### Revenue Streams
-
-#### 1. Educational SaaS (Primary)
-**B2B Licensing for Schools & Universities**
-
-| Tier | Price | Students | Features |
-|------|-------|----------|----------|
-| Starter | $2,000/year | 50 | Basic mode, teacher dashboard |
-| Professional | $5,000/year | 200 | All modes, analytics, LMS integration |
-| Enterprise | $15,000/year | Unlimited | White-label, API, custom development |
-
-**Target:** 100 schools by Year 2 = $300K-500K ARR
-
-#### 2. Consumer Freemium
-**B2C SaaS for Individual Players**
-
-- **Free:** Classic mode, 3 games/day, ads
-- **Premium:** $9.99/month - Unlimited play, all modes, no ads, tournaments
-- **Lifetime:** $79.99 - One-time purchase
-
-**Target:** 5,000 premium users by Year 2 = $500K ARR
-
-#### 3. Corporate Training
-**Custom versions for companies**
-
-- Financial literacy training modules
-- Team-building exercises
-- Leadership simulations
-- **Price:** $10,000-50,000 per deployment
-
-#### 4. Partnerships & Licensing
-- Educational platform integrations (Coursera, Udemy)
-- Fintech company partnerships
-- Content licensing
-- White-label opportunities
-
-### Monetization Ethics
-
-✅ **No pay-to-win mechanics**  
-✅ **No loot boxes or gambling**  
-✅ **No aggressive dark patterns**  
-✅ **Transparent pricing**  
-✅ **Educational value first**
-
----
-
-## 🤝 CONTRIBUTING
-
-**⚠️ IMPORTANT: This is proprietary software in active development.**
-
-### Current Status
-We are **NOT accepting public contributions** during the alpha/beta phases to protect IP and maintain quality control.
-
-### Future Plans
-- Open source **game engine library** (MIT License)
-- Community-created **custom boards** (revenue share)
-- **Plugin marketplace** for extensions
-- **Content creator program** with compensation
-
-### Interested in Contributing?
-Email: dev@capitalwars.com with:
-- Your background
-- What you'd like to contribute
-- Portfolio/GitHub profile
-
----
-
-## 📜 LICENSE & INTELLECTUAL PROPERTY
-
-### Copyright
-
-```
-Copyright © 2025 Sande Ted Dexter
-Capital Wars 2050™ and all associated trademarks, logos, and game 
-assets are the exclusive property of Sande Ted Dexter
-```
-
-### Proprietary Software License
-
-**This software is proprietary and confidential.**
-
-#### ✅ YOU MAY:
-- Play the game for personal use
-- Use in educational settings (with purchased license)
-- Provide feedback and bug reports
-- Share screenshots and gameplay videos
-
-#### ❌ YOU MAY NOT:
-- Copy, modify, or distribute the source code
-- Create derivative works or clones
-- Use for commercial purposes without license
-- Reverse engineer the game mechanics
-- Remove copyright notices
-- Sublicense or resell
-
-### Open Source Components
-This project uses the following open source libraries:
-- React (MIT)
-- Next.js (MIT)
-- Tailwind CSS (MIT)
-- Lucide React (ISC)
-
-See `package.json` for full list.
-
-### Commercial Licensing
-For commercial use, white-label, or custom development:
-- Email: licensing@capitalwars.com
-- Include: Company name, use case, expected users
-
-### Revenue Protection Clause
-
-**If this game achieves commercial success:**
-
-1. **Creator Rights:** Original creator(s) retain 100% ownership
-2. **Contributor Compensation:** Contributors who sign agreements receive:
-   - Equity or profit-sharing based on contribution
-   - Documented in separate contributor agreements
-3. **Acquisition Protection:** In case of sale/acquisition:
-   - Founder(s) control all negotiation terms
-   - Contributors receive their agreed percentage
-   - No third party can claim ownership without written agreement
-
-**All contributors must sign a Contributor License Agreement (CLA) before their code is accepted.**
-
----
-
-## 📞 CONTACT
-
-### Creator
-- **Name:** Sande Ted Dexter
-- **Email:** teddexter0@gmail.com
-- **LinkedIn:** https://www.linkedin.com/in/teddexter0
- 
-
-### Community
-- **Discord:** [Coming Soon]
-- **Reddit:** r/CapitalWars2050 [Coming Soon] 
-
----
-
-## 🙏 ACKNOWLEDGMENTS
-
-- Inspired by classic property trading board games
-- Built with modern web technologies
-- Designed for the next generation of strategy gamers
-- Created to teach real finance through engaging gameplay
-
----
-
-## 📊 PROJECT STATUS
-
-| Metric | Status |
-|--------|--------|
-| Version | 0.1.0-alpha |
-| Development Stage | Prototype |
-| Last Updated | January 2025 |
-| Lines of Code | ~1,200 |
-| Test Coverage | 0% (coming soon) |
-| Documentation | 85% |
-
----
-
-## ⭐ STAR THIS REPO (When Public)
-
-If you find this project interesting, please star it! It helps us know there's interest in making this a full product.
-
----
-
-**Built with ❤️ for finance learners, strategy enthusiasts, and future moguls.**
-
-*"Master the market. Dominate the future."*
-
----
-
-## 🔐 SECURITY
-
-Found a security vulnerability? **DO NOT** open a public issue.
-
-Email: teddexter0@gmail.com with:
-- Description of the vulnerability
-- Steps to reproduce
-- Your contact information
-
-We'll respond within 48 hours and credit you if desired.
-
----
-
-**Last Updated:** January 11, 2025  
-**License:** Proprietary - All Rights Reserved  
-**Status:** Active Development
+Copyright Ted Dexter. Proprietary; see [LICENSE.md](LICENSE.md).
